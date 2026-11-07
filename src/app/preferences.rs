@@ -416,6 +416,9 @@ impl Editor {
             value(ui, &crate::raw::version());
         });
         form_row(ui, "Updates", |ui| self.automatic_updates_checkbox(ui));
+        if let Some(library) = &mut self.library {
+            form_row(ui, "Library", |ui| library.file_type_filter_option(ui));
+        }
         gap(ui);
         group(ui, "Locations");
         let data = crate::storage::data_dir();
