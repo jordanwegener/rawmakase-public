@@ -188,6 +188,7 @@ impl RenderView {
     }
 }
 pub(super) struct PreviewState {
+    pub(super) film_view: crate::develop::film::View,
     pub(super) task: super::task::Task,
     /// The last whole-photo render, always drawn so zooming never shows a gap.
     pub(super) texture: Option<Picture>,
@@ -235,6 +236,7 @@ pub(super) struct PreviewState {
 impl Default for PreviewState {
     fn default() -> Self {
         Self {
+            film_view: Default::default(),
             task: Default::default(),
             texture: None,
             region: None,

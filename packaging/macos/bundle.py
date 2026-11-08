@@ -73,6 +73,7 @@ def main():
     notices = resources / "licenses"
     notices.mkdir()
     shutil.copy2(root / "LICENSE", notices / "RAWmakase.txt")
+    shutil.copy2(root / "THIRD_PARTY_NOTICES.txt", notices / "THIRD_PARTY_NOTICES.txt")
     shutil.copy2(root / "licenses/Adobe-DNG-SDK.txt", notices)
     shutil.copy2(root / "licenses/Hack-MIT-BitstreamVera.txt", notices)
     shutil.copy2(root / "licenses/Inter-OFL.txt", notices)

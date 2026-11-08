@@ -24,7 +24,7 @@ pub(in crate::app) enum Param {
 impl Param {
     /// The sliders with a name of their own, as `midi.json` and the control
     /// socket spell them.
-    pub(in crate::app) const NAMED: [(&'static str, Self); 14] = [
+    pub(in crate::app) const NAMED: [(&'static str, Self); 43] = [
         ("exposure", Self::Setting(Exposure)),
         ("contrast", Self::Setting(Contrast)),
         ("highlights", Self::Setting(Highlights)),
@@ -39,6 +39,59 @@ impl Param {
         ("temperature", Self::Setting(Temperature)),
         ("tint", Self::Setting(Tint)),
         ("straighten", Self::Setting(Straighten)),
+        ("halation.amount", Self::Setting(HalationAmount)),
+        ("halation.spread", Self::Setting(HalationSpread)),
+        ("halation.threshold", Self::Setting(HalationThreshold)),
+        ("halation.warmth", Self::Setting(HalationHue)),
+        ("bloom.amount", Self::Setting(BloomAmount)),
+        ("bloom.spread", Self::Setting(BloomSpread)),
+        ("bloom.threshold", Self::Setting(BloomThreshold)),
+        ("bloom.protection", Self::Setting(BloomProtection)),
+        ("bloom.saturation", Self::Setting(BloomSaturation)),
+        (
+            "halation.source_limiter",
+            Self::Setting(HalationSourceLimiter),
+        ),
+        (
+            "halation.background_gain",
+            Self::Setting(HalationBackgroundGain),
+        ),
+        ("halation.smoothness", Self::Setting(HalationSmoothness)),
+        (
+            "halation.global_diffusion",
+            Self::Setting(HalationGlobalDiffusion),
+        ),
+        ("halation.amplify", Self::Setting(HalationAmplify)),
+        (
+            "halation.blue_compensation",
+            Self::Setting(HalationBlueCompensation),
+        ),
+        ("bloom.source_limiter", Self::Setting(BloomSourceLimiter)),
+        ("bloom.details", Self::Setting(BloomDetails)),
+        ("bloom.amplify", Self::Setting(BloomAmplify)),
+        ("film_grain.amount", Self::Setting(FilmGrainAmount)),
+        ("film_grain.size", Self::Setting(FilmGrainSize)),
+        ("film_grain.shadows", Self::Setting(FilmGrainShadows)),
+        ("film_grain.midtones", Self::Setting(FilmGrainMidtones)),
+        ("film_grain.highlights", Self::Setting(FilmGrainHighlights)),
+        ("film_grain.color", Self::Setting(FilmGrainColor)),
+        ("film_grain.resolution", Self::Setting(FilmGrainResolution)),
+        (
+            "film_compression.impact",
+            Self::Setting(FilmCompressionImpact),
+        ),
+        (
+            "film_compression.range",
+            Self::Setting(FilmCompressionRange),
+        ),
+        (
+            "film_compression.white_point",
+            Self::Setting(FilmCompressionWhitePoint),
+        ),
+        (
+            "film_compression.color_density",
+            Self::Setting(FilmCompressionColorDensity),
+        ),
     ];
     /// `exposure`, `band3` (the channel the panel shows), `band3.sat` or
     /// `band3.gray`; bands count from 1 (Red). `temp` and `angle` are aliases.
@@ -47,6 +100,13 @@ impl Param {
         match name.as_str() {
             "temp" => return Some(Self::Setting(Temperature)),
             "angle" => return Some(Self::Setting(Straighten)),
+            "halation.impact" => return Some(Self::Setting(HalationAmount)),
+            "halation.local_diffusion" => return Some(Self::Setting(HalationSpread)),
+            "halation.hue" => return Some(Self::Setting(HalationHue)),
+            "bloom.impact" => return Some(Self::Setting(BloomAmount)),
+            "bloom.diffusion" => return Some(Self::Setting(BloomSpread)),
+            "bloom.highlights" => return Some(Self::Setting(BloomThreshold)),
+            "bloom.save_lights" => return Some(Self::Setting(BloomProtection)),
             _ => {}
         }
         if let Some((_, param)) = Self::NAMED.iter().find(|(n, _)| *n == name) {

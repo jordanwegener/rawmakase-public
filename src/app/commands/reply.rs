@@ -23,6 +23,12 @@ pub(in crate::app) struct State {
     pub busy: bool,
     pub modal: bool,
     pub black_and_white: bool,
+    pub film_effects_enabled: bool,
+    pub halation_enabled: bool,
+    pub bloom_enabled: bool,
+    pub film_grain_enabled: bool,
+    pub film_compression_enabled: bool,
+    pub film_panel: &'static str,
     pub mixer_channel: &'static str,
     /// The develop preset last applied to the open photo, as the Presets panel names it.
     pub preset: Option<String>,

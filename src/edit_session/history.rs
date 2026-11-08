@@ -406,6 +406,36 @@ fn describe(before: &Recipe, after: &Recipe) -> Step {
         };
         return Step::new("Treatment", treatment);
     }
+    if a.effects.film.enabled != b.effects.film.enabled {
+        return Step::new(
+            "Enable Film Effects",
+            if a.effects.film.enabled { "Yes" } else { "No" },
+        );
+    }
+    if a.effects.film.halation_values() != b.effects.film.halation_values()
+        || a.effects.film.halation_enabled != b.effects.film.halation_enabled
+    {
+        return Step::new(
+            "Halation",
+            a.effects
+                .film
+                .halation_format()
+                .map(|f| f.label())
+                .unwrap_or("Custom"),
+        );
+    }
+    if a.effects.film.bloom_values() != b.effects.film.bloom_values()
+        || a.effects.film.bloom_enabled != b.effects.film.bloom_enabled
+    {
+        return Step::new(
+            "Bloom",
+            a.effects
+                .film
+                .bloom_format()
+                .map(|f| f.label())
+                .unwrap_or("Custom"),
+        );
+    }
     let name = if (a.temperature, a.tint, a.wb) != (b.temperature, b.tint, b.wb) {
         "White Balance"
     } else if (

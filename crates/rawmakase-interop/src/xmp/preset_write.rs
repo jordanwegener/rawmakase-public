@@ -88,6 +88,18 @@ pub fn preset(r: &Recipe, shown: &Metadata, info: &PresetInfo, groups: &GroupSel
             // from this photo, so a preset names only the mode, as Lightroom's do.
             .filter(|(key, _)| !key.starts_with("Enable") && !key.starts_with("Upright")),
     );
+    // Each selected child owns one packet, including its switches and seeds.
+    // Full sidecar film state has no single group owner and is filtered out above.
+    for (group, key, prefix) in super::FILM_CHILDREN {
+        if groups.contains(group) {
+            let mut value = serde_json::to_value(r.effects.film).expect("validated film settings");
+            value
+                .as_object_mut()
+                .expect("film object")
+                .retain(|k, _| k == "enabled" || k.starts_with(prefix));
+            attributes.push((key.into(), value.to_string()));
+        }
+    }
     // Some controls are written only while they take effect: the mix for black-and-
     // white photos, grain and vignette shapes while their amount isn't zero. A preset
     // still carries every control of its groups, so applying or later raising the
@@ -190,6 +202,9 @@ pub fn point_curve(rgb: &ToneCurve, channels: &[ToneCurve; 3]) -> String {
 /// dialog groups them.
 pub(crate) fn group_of_key(key: &str) -> Option<SettingGroup> {
     use SettingGroup::*;
+    if let Some((group, _, _)) = super::FILM_CHILDREN.iter().find(|(_, own, _)| *own == key) {
+        return Some(*group);
+    }
     let starts = |prefix: &str| key.starts_with(prefix);
     Some(match key {
         "WhiteBalance" | "Temperature" | "Tint" | "IncrementalTemperature" | "IncrementalTint" => {
@@ -250,6 +265,7 @@ pub(crate) fn group_of_key(key: &str) -> Option<SettingGroup> {
         _ if starts("Upright") => UprightMode,
         _ if starts("Perspective") => TransformAdjustments,
         _ if starts("PostCropVignette") => PostCropVignetting,
+        super::FILM_DIFFUSION_KEY => FilmDiffusion,
         _ if starts("Grain") => Grain,
         _ if matches!(
             key,
@@ -413,11 +429,18 @@ mod tests {
     }
     #[test]
     fn every_key_written_belongs_to_a_group() {
+        // Complete film state spans four groups and is sidecar-only. Presets
+        // write one owned partial packet for each selected child instead.
+        assert_eq!(group_of_key(super::super::FILM_EFFECTS_KEY), None);
         let unplaced: Vec<_> = settings(&edited(), &landscape(), None)
             .0
             .into_iter()
             .map(|(k, _)| k)
-            .filter(|k| k != "HasSettings" && group_of_key(k).is_none())
+            .filter(|k| {
+                k != "HasSettings"
+                    && k != super::super::FILM_EFFECTS_KEY
+                    && group_of_key(k).is_none()
+            })
             .collect();
         assert!(unplaced.is_empty(), "{unplaced:?}");
     }

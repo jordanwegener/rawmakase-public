@@ -25,6 +25,7 @@ mod lens_profile;
 mod lensfun;
 /// Lensfun's terms, for Preferences.
 pub(super) use lensfun::terms as lensfun_terms;
+pub(super) mod film_controls;
 mod profile_menu;
 
 /// A histogram corner's clipping triangle: its corner point, which way it
@@ -497,6 +498,8 @@ impl Editor {
         // button's click.
         let targeted = self.targeted_weights();
         let mut targeted_request = None;
+        let old_film_view = self.preview.film_view;
+        let mut film_view = old_film_view;
         let view = &mut self.view;
         let (r, photo) = self.document.recipe_and_colors();
 
@@ -1512,6 +1515,224 @@ impl Editor {
         }
         switch.finish(r);
 
+        let mut film_state = if r.effects.film.enabled {
+            PanelState::On
+        } else {
+            PanelState::Off
+        };
+        if switched_section(ui, "Film Effects", &mut film_state, |ui| {
+            let (film_tab, changed_tab) = film_controls::tabs(ui);
+            if changed_tab {
+                film_view = crate::develop::film::View::Image;
+            }
+            if film_tab == 0 {
+                control_row(ui, "Preview", |ui| {
+                    egui::ComboBox::from_id_salt("film-preview")
+                        .selected_text(film_view.label())
+                        .show_ui(ui, |ui| {
+                            for value in [
+                                crate::develop::film::View::Image,
+                                crate::develop::film::View::Halation,
+                                crate::develop::film::View::Bloom,
+                            ] {
+                                ui.selectable_value(&mut film_view, value, value.label());
+                            }
+                        });
+                });
+                let defaults = crate::model::film::FilmEffects::default();
+                ui.push_id("halation", |ui| {
+                    film_switch(ui, "Halation", &mut r.effects.film.halation_enabled);
+                    ui.add_enabled_ui(r.effects.film.halation_enabled, |ui| {
+                        control_row(ui, "Profile", |ui| {
+                            egui::ComboBox::from_id_salt("halation-profile")
+                                .selected_text(
+                                    r.effects
+                                        .film
+                                        .halation_format()
+                                        .map(|f| f.label())
+                                        .unwrap_or("Custom"),
+                                )
+                                .show_ui(ui, |ui| {
+                                    for format in crate::model::film::FilmFormat::ALL {
+                                        if ui
+                                            .selectable_label(
+                                                r.effects.film.halation_format() == Some(format),
+                                                format.label(),
+                                            )
+                                            .clicked()
+                                        {
+                                            r.effects.film.apply_halation_preset(format);
+                                        }
+                                    }
+                                });
+                        });
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::HalationSourceLimiter,
+                            defaults.halation_source_limiter,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::HalationBackgroundGain,
+                            defaults.halation_background_gain,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::HalationSmoothness,
+                            defaults.halation_smoothness,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::HalationSpread,
+                            defaults.halation_spread,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::HalationGlobalDiffusion,
+                            defaults.halation_global_diffusion,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::HalationAmplify,
+                            defaults.halation_amplify,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::HalationHue,
+                            defaults.halation_hue,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::HalationBlueCompensation,
+                            defaults.halation_blue_compensation,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::HalationAmount,
+                            defaults.halation_amount,
+                            metadata.as_ref(),
+                        );
+                        ui.collapsing("Advanced", |ui| {
+                            setting_control(
+                                ui,
+                                r,
+                                ParameterId::HalationThreshold,
+                                defaults.halation_threshold,
+                                metadata.as_ref(),
+                            );
+                        });
+                    });
+                });
+                ui.push_id("bloom", |ui| {
+                    film_switch(ui, "Bloom", &mut r.effects.film.bloom_enabled);
+                    ui.add_enabled_ui(r.effects.film.bloom_enabled, |ui| {
+                        control_row(ui, "Profile", |ui| {
+                            egui::ComboBox::from_id_salt("bloom-profile")
+                                .selected_text(
+                                    r.effects
+                                        .film
+                                        .bloom_format()
+                                        .map(|f| f.label())
+                                        .unwrap_or("Custom"),
+                                )
+                                .show_ui(ui, |ui| {
+                                    for format in crate::model::film::FilmFormat::BLOOM {
+                                        if ui
+                                            .selectable_label(
+                                                r.effects.film.bloom_format() == Some(format),
+                                                format.label(),
+                                            )
+                                            .clicked()
+                                        {
+                                            r.effects.film.apply_bloom_preset(format);
+                                        }
+                                    }
+                                });
+                        });
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::BloomThreshold,
+                            defaults.bloom_threshold,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::BloomSourceLimiter,
+                            defaults.bloom_source_limiter,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::BloomDetails,
+                            defaults.bloom_details,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::BloomSpread,
+                            defaults.bloom_spread,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::BloomAmplify,
+                            defaults.bloom_amplify,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::BloomProtection,
+                            defaults.bloom_protection,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::BloomSaturation,
+                            defaults.bloom_saturation,
+                            metadata.as_ref(),
+                        );
+                        setting_control(
+                            ui,
+                            r,
+                            ParameterId::BloomAmount,
+                            defaults.bloom_amount,
+                            metadata.as_ref(),
+                        );
+                    });
+                });
+            } else {
+                film_controls::additional(ui, r, metadata.as_ref(), film_tab);
+            }
+        }) {
+            film_view = crate::develop::film::View::Image;
+            r.effects.film = Default::default();
+        }
+        r.effects.film.enabled = film_state == PanelState::On;
+
         let mut switch = PanelSwitch::new(r, Panel::Calibration);
         if switched_section(ui, "Calibration", &mut switch.state, |ui| {
             // The process version as a row of the slider grid, the camera's
@@ -1560,6 +1781,10 @@ impl Editor {
             r.effects.shadow_tint = 0.;
         }
         switch.finish(r);
+        if film_view != old_film_view {
+            self.preview.film_view = film_view;
+            self.schedule();
+        }
         if let Some(kind) = auto_request {
             self.start_auto(kind);
         }
@@ -1815,6 +2040,23 @@ fn subheading(ui: &mut egui::Ui, text: &str) -> Rect {
         theme::palette(ui.ctx()).tone(Tone::LABEL),
     );
     rect
+}
+/// A saved effect switch; its slider values survive bypass and undo.
+fn film_switch(ui: &mut egui::Ui, title: &str, enabled: &mut bool) {
+    super::widgets::set_edit_context(ui, title);
+    ui.add_space(space::M);
+    let changed = control_row(ui, "", |ui| {
+        ui.checkbox(enabled, title)
+            .on_hover_text(format!("Enable {title}; switching off keeps its settings"))
+            .changed()
+    });
+    if changed {
+        name_history_step(
+            ui,
+            format!("{title} Enabled"),
+            if *enabled { "On" } else { "Off" }.into(),
+        );
+    }
 }
 /// A labelled control row on the slider grid: caption right-aligned in the
 /// label column, controls from the rail start (5 pt past it) to the right edge,

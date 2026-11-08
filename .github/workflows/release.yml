@@ -545,23 +545,3 @@ jobs:
           done < "$expected"
           (cd "$assets" && sha256sum --check --strict "$expected")
           echo "Verified: every expected release asset matches the uploaded bytes." >> "$GITHUB_STEP_SUMMARY"
-
-  website:
-    name: Update website downloads
-    needs: publish
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/website.yml
-    with:
-      after-release: true
-
-  homebrew:
-    name: Update Homebrew tap
-    needs: [prepare, publish]
-    uses: ./.github/workflows/homebrew.yml
-    with:
-      tag: ${{ needs.prepare.outputs.tag }}
-    secrets:
-      HOMEBREW_TAP_SSH_KEY: ${{ secrets.HOMEBREW_TAP_SSH_KEY }}

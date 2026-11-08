@@ -41,7 +41,7 @@ class ConfigurationTests(unittest.TestCase):
                 arch = {"amd64": "x86_64", "arm64": "aarch64"}[target["arch"]]
                 # Each architecture's updates find only that architecture's file.
                 self.assertEqual(target["appimage"]["update_information"],
-                                 f"gh-releases-zsync|pch|rawmakase|latest|rawmakase-*-{arch}.AppImage.zsync")
+                                 f"gh-releases-zsync|jordanwegener|rawmakase-public|latest|rawmakase-*-{arch}.AppImage.zsync")
                 licences = [item for item in target["nfpm"]["contents"]
                             if item["src"] == "packaging/linux/AppImage-runtime-LICENSE"]
                 # nFPM skips contents for another packager, so the DEB and RPM
@@ -77,19 +77,19 @@ class VerifyScriptTests(unittest.TestCase):
             path.chmod(0o755)
         (self.contents / "AppRun").symlink_to("usr/bin/rawmakase")
         self.image = self.root / "rawmakase-1.2.3-x86_64.AppImage"
-        self.update = "gh-releases-zsync|pch|rawmakase|latest|rawmakase-*-x86_64.AppImage.zsync"
+        self.update = "gh-releases-zsync|jordanwegener|rawmakase-public|latest|rawmakase-*-x86_64.AppImage.zsync"
         self.image.write_text(
             "#!/bin/sh\n"
             'if [ "$1" = --appimage-extract ]; then cp -a "$CONTENTS" squashfs-root; exit; fi\n'
             'if [ "$1" = --appimage-updateinformation ]; then echo "$UPDATE"; exit; fi\n'
             'exec "$CONTENTS/AppRun" "$@"\n')
 
-    def verify(self, *arguments, image=None):
+    def verify(self, *arguments, image=None, repository="jordanwegener/rawmakase-public"):
         image = image or self.image
         zsync = image.with_name(image.name + ".zsync")
         if not zsync.exists():
             zsync.write_text("zsync: 0.6.2\n")
-        environment = dict(os.environ, CONTENTS=str(self.contents), UPDATE=self.update)
+        environment = dict(os.environ, CONTENTS=str(self.contents), UPDATE=self.update, RAWMAKASE_APPIMAGE_REPOSITORY=repository)
         return subprocess.run(["bash", str(VERIFY), str(image), *arguments],
                               env=environment, capture_output=True, text=True)
 
@@ -97,6 +97,11 @@ class VerifyScriptTests(unittest.TestCase):
         result = self.verify("1.2.3", "--run")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Verified rawmakase-1.2.3-x86_64.AppImage", result.stdout)
+
+    def test_upstream_fixture_requires_explicit_repository(self):
+        self.update = self.update.replace("jordanwegener|rawmakase-public", "pch|rawmakase")
+        self.assertNotEqual(self.verify("1.2.3").returncode, 0)
+        self.assertEqual(self.verify("1.2.3", repository="pch/rawmakase").returncode, 0)
 
     def test_runtime_licence_is_required(self):
         (self.contents / "usr/share/licenses/rawmakase/AppImage-runtime-LICENSE").unlink()

@@ -333,6 +333,8 @@ pub(crate) enum Overlay {
     None,
     /// Visualize Spots with its threshold (0–1).
     Spots(f32),
+    /// Film-only diagnostics are rendered by the shared spatial effect stage.
+    Film(crate::develop::film::View),
     /// The mask at this index of the recipe's masks, tinted with this colour and
     /// opacity.
     Mask {
@@ -340,6 +342,14 @@ pub(crate) enum Overlay {
         color: [u8; 3],
         opacity: f32,
     },
+}
+impl Overlay {
+    pub(in crate::app) fn film_view(self) -> crate::develop::film::View {
+        match self {
+            Self::Film(view) => view,
+            _ => crate::develop::film::View::Image,
+        }
+    }
 }
 pub(crate) struct RenderJob {
     pub id: u64,

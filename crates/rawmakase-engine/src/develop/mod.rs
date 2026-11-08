@@ -14,6 +14,7 @@ mod crop_constraint;
 // Develop code names the curve primitives as `develop::curve`, where they began.
 use crate::color::curve;
 pub mod effects;
+pub mod film;
 mod geometry;
 pub mod gpu;
 pub mod guided;

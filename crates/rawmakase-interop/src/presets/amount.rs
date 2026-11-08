@@ -257,6 +257,7 @@ fn effects(a: &Effects, b: &Effects, t: f32) -> Effects {
         grain_size,
         grain_roughness,
         grain_seed,
+        film,
         vignette,
         vignette_midpoint,
         vignette_roundness,
@@ -311,6 +312,7 @@ fn effects(a: &Effects, b: &Effects, t: f32) -> Effects {
         grain_size: lerp(a.grain_size, *grain_size, t, 0., 1.),
         grain_roughness: lerp(a.grain_roughness, *grain_roughness, t, 0., 1.),
         grain_seed: *grain_seed,
+        film: a.film.interpolate(*film, t),
         vignette: lerp(a.vignette, *vignette, t, -1., 1.),
         vignette_midpoint: lerp(a.vignette_midpoint, *vignette_midpoint, t, 0., 1.),
         vignette_roundness: lerp(a.vignette_roundness, *vignette_roundness, t, -1., 1.),
@@ -400,15 +402,20 @@ fn blend(a: &Recipe, b: &Recipe, t: f32, m: &Metadata) -> Recipe {
     };
     // Like Lightroom's slider, Temperature moves evenly in mireds.
     let mired = |k: f32| 1e6 / k;
-    let temperature = (1e6
-        / lerp(
+    let temperature = if a.temperature == *temperature {
+        // An unrelated preset must retain the controls and measured gains
+        // exactly; a reciprocal round trip can move an unchanged f32 Kelvin.
+        *temperature
+    } else {
+        (1e6 / lerp(
             mired(a.temperature),
             mired(*temperature),
             t,
             mired(TEMPERATURE_MAX),
             mired(TEMPERATURE_MIN),
         ))
-    .clamp(TEMPERATURE_MIN, TEMPERATURE_MAX);
+        .clamp(TEMPERATURE_MIN, TEMPERATURE_MAX)
+    };
     let tint = lerp_setting(ParameterId::Tint, a.tint, *tint, t);
     let incremental_temperature = lerp_setting(
         ParameterId::IncrementalTemperature,

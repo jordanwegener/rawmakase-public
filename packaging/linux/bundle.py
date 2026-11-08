@@ -48,6 +48,7 @@ def main():
     licenses = stage / "usr/share/licenses/rawmakase"
     licenses.mkdir(parents=True)
     for source, target in [(root / "LICENSE", licenses / "LICENSE"),
+                           (root / "THIRD_PARTY_NOTICES.txt", licenses / "THIRD_PARTY_NOTICES.txt"),
                            (root / "licenses/Adobe-DNG-SDK.txt", licenses / "Adobe-DNG-SDK.txt"),
                            (root / "licenses/Hack-MIT-BitstreamVera.txt", licenses / "Hack-MIT-BitstreamVera.txt"),
                            (root / "licenses/Inter-OFL.txt", licenses / "Inter-OFL.txt"),

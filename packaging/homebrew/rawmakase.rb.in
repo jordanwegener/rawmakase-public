@@ -5,10 +5,10 @@ cask "rawmakase" do
   sha256 arm:   "@MACOS_ARM64_SHA256@",
          intel: "@MACOS_X86_64_SHA256@"
 
-  url "https://github.com/pch/rawmakase/releases/download/v#{version}/rawmakase-v#{version}-macos-#{arch}.dmg"
+  url "https://github.com/jordanwegener/rawmakase-public/releases/download/v#{version}/rawmakase-v#{version}-macos-#{arch}.dmg"
   name "RAWmakase"
   desc "Fast, non-destructive RAW photo developer"
-  homepage "https://github.com/pch/rawmakase"
+  homepage "https://github.com/jordanwegener/rawmakase-public"
 
   livecheck do
     url :url

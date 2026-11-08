@@ -13,3 +13,13 @@
 *.rawmakase-*
 __pycache__/
 *.pyc
+
+# Local test builds, research outputs and personal application data.
+/outputs/
+/work/
+/state/
+/private/
+/.local/
+.env
+.env.*
+!.env.example

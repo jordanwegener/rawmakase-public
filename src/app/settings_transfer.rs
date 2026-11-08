@@ -341,3 +341,73 @@ fn preset_fields(ui: &mut egui::Ui, form: &mut PresetForm, library: &crate::pres
             });
     });
 }
+
+#[cfg(test)]
+mod film_tests {
+    use super::*;
+
+    #[test]
+    fn film_effects_copy_dialog_has_separate_child_checkboxes() {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        for purpose in [Transfer::Copy, Transfer::Sync, Transfer::NewPreset] {
+            let mut groups = GroupSelection::none();
+            let section = SettingGroup::SECTIONS
+                .iter()
+                .find(|s| s.title == "Film Effects")
+                .unwrap();
+            let draw = |groups: &mut GroupSelection, events| {
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(
+                            egui::Pos2::ZERO,
+                            egui::vec2(600., 600.),
+                        )),
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| section_checkboxes(ui, section, groups, purpose),
+                );
+                output.textures_delta.clear();
+                output.platform_output.accesskit_update.unwrap()
+            };
+            let click = |groups: &mut GroupSelection, label: &str| {
+                draw(groups, vec![]);
+                let tree = draw(groups, vec![]);
+                let node = tree
+                    .nodes
+                    .iter()
+                    .map(|(_, n)| n)
+                    .find(|n| n.label() == Some(label))
+                    .unwrap_or_else(|| panic!("missing {label} checkbox for {purpose:?}"));
+                let b = node.bounds().unwrap();
+                let at = egui::pos2(((b.x0 + b.x1) / 2.) as f32, ((b.y0 + b.y1) / 2.) as f32);
+                for pressed in [true, false] {
+                    draw(
+                        groups,
+                        vec![
+                            egui::Event::PointerMoved(at),
+                            egui::Event::PointerButton {
+                                pos: at,
+                                button: egui::PointerButton::Primary,
+                                pressed,
+                                modifiers: egui::Modifiers::NONE,
+                            },
+                        ],
+                    );
+                }
+            };
+            click(&mut groups, "Halation");
+            assert!(groups.contains(SettingGroup::Halation));
+            assert!(!groups.contains(SettingGroup::Bloom));
+            click(&mut groups, "Film Effects");
+            assert!(groups.contains(SettingGroup::Halation));
+            assert!(groups.contains(SettingGroup::Bloom));
+            click(&mut groups, "Film Effects");
+            assert!(groups.is_empty());
+            click(&mut groups, "Bloom");
+            assert!(!groups.contains(SettingGroup::Halation));
+            assert!(groups.contains(SettingGroup::Bloom));
+        }
+    }
+}

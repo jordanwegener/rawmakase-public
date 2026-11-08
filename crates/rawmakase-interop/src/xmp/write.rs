@@ -392,6 +392,10 @@ pub(super) fn settings(r: &Recipe, shown: &Metadata, photo: Option<Frame<'_>>) -
         );
     }
     s.put("ShadowTint", r.effects.shadow_tint, 0.01, 0, true);
+    s.text(
+        super::FILM_EFFECTS_KEY,
+        serde_json::to_string(&r.effects.film).expect("validated film settings"),
+    );
     s.put("GrainAmount", r.effects.grain, 0.01, 0, false);
     if r.effects.grain > 0. {
         s.put("GrainSize", r.effects.grain_size, 0.01, 0, false);

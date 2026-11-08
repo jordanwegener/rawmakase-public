@@ -2216,3 +2216,422 @@ fn white_balance_round_trips_under_a_fitted_matrix_base() -> Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn native_film_effects_round_trip_without_using_adobe_glow() -> Result<()> {
+    let m = Metadata {
+        wb: [1.; 3],
+        daylight_wb: [1.; 3],
+        ..Default::default()
+    };
+    let mut r = Recipe::default();
+    r.effects.film =
+        crate::model::film::FilmEffects::preset(crate::model::film::FilmFormat::Strong35);
+    r.effects.film.enabled = false;
+    r.effects.film.halation_enabled = false;
+    r.effects.film.bloom_enabled = false;
+    let photo = crate::xmp::write::Photo {
+        settings: true,
+        ..Default::default()
+    };
+    let packet = crate::xmp::write::packet(&r, &m, &photo);
+    assert!(packet.contains("rawmakase:FilmEffects="));
+    assert!(!packet.contains("crs:Glow="));
+    let back = parse(Path::new("film.xmp"), &packet)?.apply(&Recipe::default(), &m, &[], None)?;
+    assert_eq!(back.effects.film, r.effects.film);
+    let empty_packet = crate::xmp::write::packet(&Recipe::default(), &m, &photo);
+    let cleared = parse(Path::new("clear.xmp"), &empty_packet)?.apply(&r, &m, &[], None)?;
+    assert!(!cleared.effects.film.active());
+    assert!(cleared.effects.film.enabled);
+    Ok(())
+}
+
+#[test]
+fn native_film_child_presets_leave_the_other_effect_unchanged() -> Result<()> {
+    use crate::model::{
+        film::{FilmEffects, FilmFormat},
+        settings_groups::{GroupInclusion, GroupSelection, SettingGroup},
+    };
+    let m = Metadata {
+        wb: [1.; 3],
+        daylight_wb: [1.; 3],
+        ..Default::default()
+    };
+    let mut source = Recipe::default();
+    source.effects.film = FilmEffects {
+        enabled: false,
+        halation_enabled: false,
+        bloom_enabled: false,
+        halation_amount: 0.8,
+        halation_spread: 0.9,
+        halation_threshold: 0.4,
+        halation_hue: 0.6,
+        bloom_amount: 0.7,
+        bloom_spread: 0.8,
+        bloom_threshold: 0.5,
+        bloom_protection: 0.4,
+        bloom_saturation: 0.3,
+        halation_source_limiter: 0.91,
+        halation_background_gain: 0.91,
+        halation_smoothness: 0.91,
+        halation_global_diffusion: 0.91,
+        halation_amplify: 0.91,
+        halation_blue_compensation: 0.91,
+        bloom_source_limiter: 0.91,
+        bloom_details: 0.91,
+        bloom_amplify: 0.91,
+        ..Default::default()
+    };
+    let mut target = Recipe::default();
+    target.effects.film = FilmEffects::preset(FilmFormat::Small8);
+    for (group, own, other) in [
+        (SettingGroup::Halation, "FilmHalation", "FilmBloom"),
+        (SettingGroup::Bloom, "FilmBloom", "FilmHalation"),
+    ] {
+        let mut groups = GroupSelection::none();
+        groups.set(group, GroupInclusion::Included);
+        let packet = crate::xmp::preset_write::preset(
+            &source,
+            &m,
+            &crate::xmp::preset_write::PresetInfo::new("One effect", "Test"),
+            &groups,
+        );
+        assert!(packet.contains(&format!("rawmakase:{own}=")));
+        assert!(!packet.contains(&format!("rawmakase:{other}=")));
+        assert!(!packet.contains("rawmakase:FilmDiffusion="));
+        let applied =
+            parse(Path::new("partial-film.xmp"), &packet)?.apply(&target, &m, &[], None)?;
+        let f = applied.effects.film;
+        let mut expected_film = target.effects.film;
+        if group == SettingGroup::Halation {
+            expected_film.copy_halation_from(source.effects.film);
+        } else {
+            expected_film.copy_bloom_from(source.effects.film);
+        }
+        assert_eq!(f, expected_film);
+        let (h, b) = if group == SettingGroup::Halation {
+            (source.effects.film, target.effects.film)
+        } else {
+            (target.effects.film, source.effects.film)
+        };
+        assert_eq!(
+            (
+                f.halation_enabled,
+                f.halation_amount,
+                f.halation_spread,
+                f.halation_threshold,
+                f.halation_hue
+            ),
+            (
+                h.halation_enabled,
+                h.halation_amount,
+                h.halation_spread,
+                h.halation_threshold,
+                h.halation_hue
+            )
+        );
+        assert_eq!(
+            (
+                f.bloom_enabled,
+                f.bloom_amount,
+                f.bloom_spread,
+                f.bloom_threshold,
+                f.bloom_protection,
+                f.bloom_saturation
+            ),
+            (
+                b.bloom_enabled,
+                b.bloom_amount,
+                b.bloom_spread,
+                b.bloom_threshold,
+                b.bloom_protection,
+                b.bloom_saturation
+            )
+        );
+        assert!(!f.enabled);
+    }
+    Ok(())
+}
+
+mod expanded_film {
+    use super::*;
+    use crate::model::{
+        film::FilmEffects,
+        settings_groups::{GroupInclusion, GroupSelection, SettingGroup},
+    };
+
+    fn metadata() -> Metadata {
+        Metadata {
+            make: "Test".into(),
+            model: "Camera".into(),
+            wb: [2., 1., 1.8],
+            daylight_wb: [2., 1., 1.8],
+            cam_xyz: [[0.8, -0.2, -0.1], [-0.3, 1.1, 0.2], [-0.05, 0.15, 0.6]],
+            ..Default::default()
+        }
+    }
+    fn film() -> FilmEffects {
+        FilmEffects {
+            enabled: false,
+            halation_amount: 0.72,
+            bloom_amount: 0.63,
+            grain_enabled: false,
+            grain_amount: 0.44,
+            grain_size: 0.31,
+            grain_shadows: 0.19,
+            grain_midtones: 0.48,
+            grain_highlights: 0.81,
+            grain_color: 0.22,
+            grain_resolution: 0.88,
+            grain_seed: u64::MAX - 2,
+            compression_enabled: true,
+            compression_impact: 0.71,
+            compression_range: 0.27,
+            compression_white_point: 1.13,
+            compression_color_density: 0.93,
+            ..Default::default()
+        }
+    }
+    fn packet(values: &[(&str, String)]) -> String {
+        let attrs = values
+            .iter()
+            .map(|(key, value)| format!("r:{key}=\"{}\"", crate::xml::escape_text(value)))
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!(
+            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"{RDF}\"><rdf:Description xmlns:c=\"{CRS}\" c:HasSettings=\"True\" xmlns:r=\"{}\" {attrs}/></rdf:RDF></x:xmpmeta>",
+            crate::xml::ns::RAWMAKASE,
+        )
+    }
+    fn copy(group: SettingGroup, to: &mut FilmEffects, from: FilmEffects) {
+        match group {
+            SettingGroup::Halation => to.copy_halation_from(from),
+            SettingGroup::Bloom => to.copy_bloom_from(from),
+            SettingGroup::FilmGrain => to.copy_grain_from(from),
+            SettingGroup::FilmCompression => to.copy_compression_from(from),
+            _ => panic!("unexpected film group"),
+        }
+    }
+
+    #[test]
+    fn full_packets_round_trip_every_film_operator_and_clear_defaults() -> Result<()> {
+        let m = metadata();
+        let mut source = Recipe::default();
+        source.effects.film = film();
+        let info = write::Photo {
+            settings: true,
+            ..Default::default()
+        };
+        let text = write::packet(&source, &m, &info);
+        assert!(text.contains("rawmakase:FilmEffects="));
+        assert!(!text.contains("rawmakase:FilmDiffusion="));
+        let back = parse(Path::new("complete-film.xmp"), &text)?.apply(
+            &Recipe::default(),
+            &m,
+            &[],
+            None,
+        )?;
+        assert_eq!(back.effects.film, source.effects.film);
+        let clear = write::packet(&Recipe::default(), &m, &info);
+        let back = parse(Path::new("clear-film.xmp"), &clear)?.apply(&source, &m, &[], None)?;
+        assert_eq!(back.effects.film, FilmEffects::default());
+        Ok(())
+    }
+
+    #[test]
+    fn legacy_diffusion_copies_only_halation_and_bloom_and_full_packet_wins() -> Result<()> {
+        let m = metadata();
+        let mut target = Recipe::default();
+        target.effects.film = film();
+        let legacy = r#"{"enabled":true,"halation_amount":0.24,"bloom_amount":0.37}"#.to_string();
+        let text = packet(&[("FilmDiffusion", legacy.clone())]);
+        let applied = parse(Path::new("legacy-film.xmp"), &text)?.apply(&target, &m, &[], None)?;
+        let mut expected = target.effects.film;
+        expected.copy_diffusion_from(serde_json::from_str(&legacy)?);
+        assert_eq!(applied.effects.film, expected);
+        let complete = serde_json::to_string(&FilmEffects::default())?;
+        for entries in [
+            vec![
+                ("FilmEffects", complete.clone()),
+                ("FilmDiffusion", legacy.clone()),
+            ],
+            vec![
+                ("FilmDiffusion", legacy.clone()),
+                ("FilmEffects", complete.clone()),
+            ],
+        ] {
+            let text = packet(&entries);
+            let applied =
+                parse(Path::new("mixed-film.xmp"), &text)?.apply(&target, &m, &[], None)?;
+            assert_eq!(applied.effects.film, FilmEffects::default());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn child_presets_and_amount_preserve_unselected_film_and_underlying_look() -> Result<()> {
+        let m = metadata();
+        let profile =
+            std::sync::Arc::new(crate::camera_profiles::CameraProfile::creative_for_test(&m));
+        let profiles = [profile.clone()];
+        let mut target = Recipe::with_profiles(&m, &profiles);
+        target.profile = Some(profile);
+        target.profile_amount = 0.73;
+        target.temperature = 2903.;
+        target.tint = 6.;
+        target.update_wb(&m);
+        target.auto_white_balance = Some([target.temperature, target.tint]);
+        target.exposure = 0.85;
+        target.effects.grain = 0.22;
+        target.effects.grain_seed = 721;
+        target.effects.film = FilmEffects {
+            grain_amount: 0.2,
+            compression_enabled: true,
+            ..Default::default()
+        };
+        let mut source = Recipe::default();
+        source.effects.film = film();
+        let children = [
+            (SettingGroup::Halation, "FilmHalation", "halation_"),
+            (SettingGroup::Bloom, "FilmBloom", "bloom_"),
+            (SettingGroup::FilmGrain, "FilmGrain", "grain_"),
+            (
+                SettingGroup::FilmCompression,
+                "FilmCompression",
+                "compression_",
+            ),
+        ];
+        for (group, key, prefix) in children {
+            let mut selection = GroupSelection::none();
+            selection.set(group, GroupInclusion::Included);
+            let text = preset_write::preset(
+                &source,
+                &m,
+                &preset_write::PresetInfo::new("Overlay", "Test"),
+                &selection,
+            );
+            let preset = parse(Path::new("overlay.xmp"), &text)?;
+            assert!(!preset.settings.contains_key("rawmakase:FilmEffects"));
+            assert!(!preset.settings.contains_key("rawmakase:FilmDiffusion"));
+            let native_key = format!("rawmakase:{key}");
+            assert!(preset.settings.contains_key(&native_key));
+            for (_, other, _) in children {
+                assert_eq!(
+                    preset.settings.contains_key(&format!("rawmakase:{other}")),
+                    other == key
+                );
+            }
+            let fields: serde_json::Value = serde_json::from_str(&preset.settings[&native_key])?;
+            assert!(
+                fields
+                    .as_object()
+                    .unwrap()
+                    .keys()
+                    .all(|k| k == "enabled" || k.starts_with(prefix))
+            );
+            let full = preset.apply(&target, &m, &profiles, None)?;
+            let mut expected = target.effects.film;
+            copy(group, &mut expected, source.effects.film);
+            assert_eq!(full.effects.film, expected);
+            let amount =
+                crate::presets::amount::PresetAmount::new(&preset, target.clone(), full.clone())
+                    .unwrap();
+            assert_eq!(amount.at(0., &m), target);
+            assert_eq!(amount.at(1., &m), full);
+            for value in [0.25, 0.5, 1.5, 2.] {
+                let mut r = amount.at(value, &m);
+                r.validate()?;
+                let mut reset = r.effects.film;
+                copy(group, &mut reset, target.effects.film);
+                reset.enabled = target.effects.film.enabled;
+                assert_eq!(
+                    reset, target.effects.film,
+                    "{group:?}: unselected film controls changed"
+                );
+                r.effects.film = target.effects.film;
+                r.preset_name.clone_from(&target.preset_name);
+                r.preset_settings.clone_from(&target.preset_settings);
+                assert_eq!(r, target, "{group:?}: underlying look changed");
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn native_film_payloads_reject_unknown_invalid_and_malformed_fields() -> Result<()> {
+        let m = metadata();
+        for (key, value) in [
+            ("FilmEffects", r#"{"grain_amount":1.1}"#),
+            ("FilmEffects", r#"{"experimental_texture":0.2}"#),
+            ("FilmGrain", r#"{"grain_seed":-1}"#),
+            ("FilmGrain", r#"{"grain_amount":null}"#),
+            ("FilmCompression", r#"{"compression_white_point":0.49}"#),
+            ("FilmCompression", r#"{"compression_range":1.01}"#),
+        ] {
+            let text = packet(&[(key, value.into())]);
+            assert!(
+                parse(Path::new("invalid-film.xmp"), &text)?
+                    .apply(&Recipe::default(), &m, &[], None)
+                    .is_err(),
+                "accepted {key}: {value}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn unsupported_native_effects_fail_strictly_and_warn_in_best_effort_import() -> Result<()> {
+        let m = metadata();
+        let base = Recipe::default();
+        for (key, payload, expected) in [
+            (
+                "FilmExperimental",
+                r#"{"amount":0.4}"#,
+                "Unsupported preset settings",
+            ),
+            (
+                "FilmEffects",
+                r#"{"experimental_texture":0.4}"#,
+                "unknown field",
+            ),
+        ] {
+            let text = packet(&[(key, payload.into())]);
+            let preset = parse(Path::new("experimental.xmp"), &text)?;
+            let error = preset.apply(&base, &m, &[], None).unwrap_err();
+            assert!(format!("{error:#}").contains(expected));
+            let (applied, warnings) = preset.apply_lenient(&base, &m, &[], None)?;
+            assert_eq!(applied.effects.film, base.effects.film);
+            assert!(warnings.iter().any(|message| message.contains(expected)));
+        }
+        Ok(())
+    }
+    #[test]
+    fn legacy_group_selection_writes_two_partial_effects_only() -> Result<()> {
+        let m = metadata();
+        let mut source = Recipe::default();
+        source.effects.film = film();
+        let mut groups = GroupSelection::none();
+        groups.set(SettingGroup::FilmDiffusion, GroupInclusion::Included);
+        let text = preset_write::preset(
+            &source,
+            &m,
+            &preset_write::PresetInfo::new("Diffusion", "Test"),
+            &groups,
+        );
+        let parsed = parse(Path::new("diffusion.xmp"), &text)?;
+        assert!(parsed.settings.contains_key("rawmakase:FilmHalation"));
+        assert!(parsed.settings.contains_key("rawmakase:FilmBloom"));
+        for key in [
+            "FilmEffects",
+            "FilmDiffusion",
+            "FilmGrain",
+            "FilmCompression",
+        ] {
+            assert!(
+                !parsed.settings.contains_key(&format!("rawmakase:{key}")),
+                "unexpected {key}"
+            );
+        }
+        Ok(())
+    }
+}

@@ -112,6 +112,9 @@ pub(crate) fn render_display(
     cancel: &std::sync::atomic::AtomicBool,
     stages: &mut crate::develop::preview_renderer::Stages,
 ) -> Result<Option<crate::develop::gpu::Frame>> {
+    if finished.effects.film.active() || stages.film_view != crate::develop::film::View::Image {
+        return Ok(None);
+    }
     let Some(display) = stages.display else {
         return Ok(None);
     };

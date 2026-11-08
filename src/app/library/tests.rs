@@ -1424,6 +1424,32 @@ fn file_type_filter_visibility_is_saved_without_hiding_photos() -> Result<()> {
 }
 
 #[test]
+fn restoring_a_place_keeps_file_type_filter_visibility() -> Result<()> {
+    let (_directory, mut library) = library_of(&["a.RAF", "b.JPG"])?;
+    for visible in [true, false] {
+        library.filters.set_file_type_visible(visible);
+        if visible {
+            library.filters.file_type = FileType::Raw;
+        }
+        library.filter();
+        let place = library.place();
+        library.filters.set_file_type_visible(!visible);
+        library.go_to_place(&place);
+        assert_eq!(library.filters.hide_file_type_filter, visible);
+        assert_eq!(library.filters.file_type, FileType::All);
+        assert_eq!(library.visible.len(), 2);
+    }
+    library.filters.file_type = FileType::Raw;
+    library.filter();
+    let place = library.place();
+    library.filters.file_type = FileType::All;
+    library.go_to_place(&place);
+    assert_eq!(library.filters.file_type, FileType::Raw);
+    assert_eq!(library.visible.len(), 1);
+    Ok(())
+}
+
+#[test]
 fn file_type_filter_buttons_work_in_wide_and_wrapped_bars() -> Result<()> {
     fn text_center(shape: &egui::Shape, label: &str) -> Option<egui::Pos2> {
         match shape {

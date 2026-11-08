@@ -202,6 +202,13 @@ pub(super) enum Action {
     Panels(PanelChange),
     /// Hides or shows everything but the photo, as F does.
     Chrome,
+    FilmPreview(crate::develop::film::View),
+    Halation(bool),
+    Bloom(bool),
+    FilmGrain(bool),
+    FilmCompression(bool),
+    GrainPattern,
+    FilmPanel(u8),
 }
 impl Action {
     const NAMED: &[(&'static str, Self)] = &[
@@ -247,6 +254,30 @@ impl Action {
         ("clipping", Self::Clipping),
         ("zoom", Self::Zoom),
         ("fit", Self::Fit),
+        ("halation:on", Self::Halation(true)),
+        ("halation:off", Self::Halation(false)),
+        ("bloom:on", Self::Bloom(true)),
+        ("bloom:off", Self::Bloom(false)),
+        ("film-grain:on", Self::FilmGrain(true)),
+        ("film-grain:off", Self::FilmGrain(false)),
+        ("film-compression:on", Self::FilmCompression(true)),
+        ("film-compression:off", Self::FilmCompression(false)),
+        ("film-grain:new-pattern", Self::GrainPattern),
+        ("film-panel:light", Self::FilmPanel(0)),
+        ("film-panel:grain", Self::FilmPanel(1)),
+        ("film-panel:compression", Self::FilmPanel(2)),
+        (
+            "film-preview:image",
+            Self::FilmPreview(crate::develop::film::View::Image),
+        ),
+        (
+            "film-preview:halation",
+            Self::FilmPreview(crate::develop::film::View::Halation),
+        ),
+        (
+            "film-preview:bloom",
+            Self::FilmPreview(crate::develop::film::View::Bloom),
+        ),
         ("crop", Self::Crop),
         ("remove", Self::Remove),
         ("white_balance", Self::WhiteBalance),
@@ -394,6 +425,16 @@ impl Editor {
             busy: self.activity.is_busy(),
             modal: self.command_modal(),
             black_and_white: develop && recipe.effects.monochrome,
+            film_effects_enabled: develop && recipe.effects.film.enabled,
+            halation_enabled: develop && recipe.effects.film.halation_enabled,
+            bloom_enabled: develop && recipe.effects.film.bloom_enabled,
+            film_grain_enabled: develop && recipe.effects.film.grain_enabled,
+            film_compression_enabled: develop && recipe.effects.film.compression_enabled,
+            film_panel: match super::inspector::film_controls::selected(&self.context) {
+                1 => "grain",
+                2 => "compression",
+                _ => "light",
+            },
             mixer_channel: (["hue", "sat", "lum"][self.view.mixer_adjust.min(2)]),
             // A photo's imported Lightroom edit names no preset in the list.
             preset: develop
@@ -913,6 +954,15 @@ impl Editor {
                     ));
                 }
             }
+            FilmPreview(view) => {
+                self.preview.film_view = view;
+                self.schedule();
+            }
+            FilmPanel(tab) => {
+                super::inspector::film_controls::select(&self.context, tab);
+                self.preview.film_view = crate::develop::film::View::Image;
+                self.schedule();
+            }
             Library => return self.command_module(false),
             Develop => return self.command_module(true),
             Next => return self.command_navigate(1),
@@ -965,6 +1015,39 @@ impl Editor {
                         self.open_copy_dialog(super::settings_transfer::Transfer::Sync);
                     }
                     Reset => self.reset_settings(),
+                    Halation(enabled)
+                    | Bloom(enabled)
+                    | FilmGrain(enabled)
+                    | FilmCompression(enabled) => {
+                        let film = &mut self.document.edit.recipe_mut().effects.film;
+                        let (flag, title) = match action {
+                            Halation(_) => (&mut film.halation_enabled, "Halation"),
+                            Bloom(_) => (&mut film.bloom_enabled, "Bloom"),
+                            FilmGrain(_) => (&mut film.grain_enabled, "Film Grain"),
+                            FilmCompression(_) => {
+                                (&mut film.compression_enabled, "Film Compression")
+                            }
+                            _ => unreachable!("film effect action"),
+                        };
+                        if *flag != enabled {
+                            *flag = enabled;
+                            super::widgets::name_frame_step(
+                                &self.context,
+                                format!("{title} Enabled"),
+                                if enabled { "On" } else { "Off" }.into(),
+                            );
+                        }
+                    }
+                    GrainPattern => {
+                        let film = &mut self.document.edit.recipe_mut().effects.film;
+                        let (seed, title) = (&mut film.grain_seed, "Film Grain Pattern");
+                        *seed = seed.wrapping_add(1);
+                        super::widgets::name_frame_step(
+                            &self.context,
+                            title.into(),
+                            seed.to_string(),
+                        );
+                    }
                     AutoTone | AutoWhiteBalance => {
                         if self.document.auto.is_running() {
                             return Err(Error::new(

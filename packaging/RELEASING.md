@@ -1,3 +1,16 @@
+# Community edition release setup
+
+This fork currently provides source only. Configure its own signing/notarization
+credentials and validate installers on each platform before the first packaged
+release. Update URLs, AppImage metadata, the macOS bundle identifier, Windows
+installer ID and update verification key belong to this fork. No Homebrew tap,
+external package repository, website or stats deployment is configured.
+
+Ordinary packaging CI uses `packaging-rehearsal.yaml` with an explicitly labelled
+upstream v0.1.8 archive solely as an installation fixture (`publish: false`).
+Actual releases use `native-packages.yaml` and this fork's own build artifacts.
+The fixture is never a community-edition download.
+
 # Package releases
 
 The release workflow builds stable `vMAJOR.MINOR.PATCH` tags already on `main`.
@@ -219,35 +232,15 @@ licence (`packaging/linux/AppImage-runtime-LICENSE`, for the runtime that
 native-packages version pins; check it when upgrading).
 `packaging/linux/verify-appimage.sh` checks its layout on each architecture
 and, for a release, runs it. Each AppImage embeds
-`gh-releases-zsync|pch|rawmakase|latest|rawmakase-*-ARCH.AppImage.zsync`, so
+`gh-releases-zsync|jordanwegener|rawmakase-public|latest|rawmakase-*-ARCH.AppImage.zsync`, so
 AppImage updaters fetch the newest stable release's `.zsync` file, which the
 release publishes beside it. Never rename either file. The app's own updater
 still only points AppImage users at the release page.
 
 ### Homebrew tap
 
-After GitHub publication, `.github/workflows/homebrew.yml` updates
-[`pch/homebrew-tap`](https://github.com/pch/homebrew-tap). Users install with
-`brew install --cask pch/tap/rawmakase` and update with
-`brew upgrade --cask rawmakase`.
-
-The workflow prepares only the recipe from the published release, verifies both
-DMG checksums and renders the checked-in cask template with those hashes. It
-runs Homebrew style and online audits, installs the app on macOS, checks its CLI,
-signature and Gatekeeper acceptance, and uninstalls it before publishing. The
-`homebrew` destination in `native-packages.yaml` maps the recipe to
-`Casks/rawmakase.rb`. AUR publication remains disabled.
-
-The application repository's `HOMEBREW_TAP_SSH_KEY` Actions secret holds an SSH
-private key whose public key is a write-enabled deploy key on the tap alone.
-The normal `GITHUB_TOKEN` cannot push to a separate repository. No broad personal
-access token or newer shared packaging workflow is needed for this publisher.
-
-To bootstrap or retry a tap update without rebuilding or replacing release
-assets, run **Publish Homebrew cask** from Actions on `main`, supplying the latest
-published stable tag. Older versions and prereleases are rejected; updates are
-serialized and native-packages also refuses downgrades. A release is complete
-only after this workflow succeeds and the tap contains the expected version.
+No tap is configured. The cask template is retained for future setup; publishing
+to an external repository requires an explicitly configured destination and key.
 
 ## AUR pause and updates
 

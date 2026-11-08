@@ -45,6 +45,12 @@ pub enum SettingGroup {
     TransformAdjustments,
     PostCropVignetting,
     Grain,
+    /// Legacy serialized selection, expanded to Halation and Bloom when read.
+    FilmDiffusion,
+    Halation,
+    Bloom,
+    FilmGrain,
+    FilmCompression,
     ProcessVersion,
     Calibration,
     SpotRemoval,
@@ -60,7 +66,7 @@ pub struct Section {
 }
 
 impl SettingGroup {
-    pub const ALL: [SettingGroup; 33] = [
+    pub const ALL: [SettingGroup; 37] = [
         SettingGroup::WhiteBalance,
         SettingGroup::Exposure,
         SettingGroup::Contrast,
@@ -89,6 +95,10 @@ impl SettingGroup {
         SettingGroup::TransformAdjustments,
         SettingGroup::PostCropVignetting,
         SettingGroup::Grain,
+        SettingGroup::Halation,
+        SettingGroup::Bloom,
+        SettingGroup::FilmGrain,
+        SettingGroup::FilmCompression,
         SettingGroup::ProcessVersion,
         SettingGroup::Calibration,
         SettingGroup::SpotRemoval,
@@ -115,7 +125,7 @@ impl SettingGroup {
         )
     }
     /// Copy Settings' sections, in Lightroom's order.
-    pub const SECTIONS: [Section; 13] = {
+    pub const SECTIONS: [Section; 14] = {
         use SettingGroup::*;
         [
             Section {
@@ -157,6 +167,10 @@ impl SettingGroup {
             Section {
                 title: "Effects",
                 groups: &[PostCropVignetting, Grain],
+            },
+            Section {
+                title: "Film Effects",
+                groups: &[Halation, Bloom, FilmGrain, FilmCompression],
             },
             Section {
                 title: "Process & Calibration",
@@ -204,6 +218,11 @@ impl SettingGroup {
             TransformAdjustments => "Transform Adjustments",
             PostCropVignetting => "Post-Crop Vignetting",
             Grain => "Grain",
+            FilmDiffusion => "Halation & Bloom",
+            Halation => "Halation",
+            Bloom => "Bloom",
+            FilmGrain => "Film Grain",
+            FilmCompression => "Film Compression",
             ProcessVersion => "Process Version",
             Calibration => "Calibration",
             SpotRemoval => "Spot Removal",
@@ -330,6 +349,11 @@ impl SettingGroup {
                 e.vignette_highlights = f.vignette_highlights;
                 e.vignette_style = f.vignette_style;
             }
+            FilmDiffusion => e.film.copy_diffusion_from(f.film),
+            Halation => e.film.copy_halation_from(f.film),
+            Bloom => e.film.copy_bloom_from(f.film),
+            FilmGrain => e.film.copy_grain_from(f.film),
+            FilmCompression => e.film.copy_compression_from(f.film),
             Grain => {
                 e.grain = f.grain;
                 e.grain_size = f.grain_size;
@@ -360,9 +384,19 @@ impl SettingGroup {
 }
 
 /// Which groups a Copy, Paste or Sync transfers.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
 pub struct GroupSelection(BTreeSet<SettingGroup>);
+
+impl<'de> Deserialize<'de> for GroupSelection {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut groups = BTreeSet::<SettingGroup>::deserialize(deserializer)?;
+        if groups.remove(&SettingGroup::FilmDiffusion) {
+            groups.extend([SettingGroup::Halation, SettingGroup::Bloom]);
+        }
+        Ok(Self(groups))
+    }
+}
 
 impl Default for GroupSelection {
     /// As Lightroom's Paste Settings: everything but spot removal and masks, which
@@ -393,9 +427,17 @@ impl GroupSelection {
         Self(BTreeSet::new())
     }
     pub fn contains(&self, group: SettingGroup) -> bool {
+        if group == SettingGroup::FilmDiffusion {
+            return self.contains(SettingGroup::Halation) && self.contains(SettingGroup::Bloom);
+        }
         self.0.contains(&group)
     }
     pub fn set(&mut self, group: SettingGroup, included: GroupInclusion) {
+        if group == SettingGroup::FilmDiffusion {
+            self.set(SettingGroup::Halation, included);
+            self.set(SettingGroup::Bloom, included);
+            return;
+        }
         match included {
             GroupInclusion::Included => self.0.insert(group),
             GroupInclusion::Excluded => self.0.remove(&group),
@@ -676,6 +718,7 @@ pub(crate) fn every_setting(r: &Recipe) -> Vec<(&'static str, Kind)> {
         grain_size: _,
         grain_roughness: _,
         grain_seed: _,
+        film: _,
         vignette: _,
         vignette_midpoint: _,
         vignette_roundness: _,
@@ -691,6 +734,44 @@ pub(crate) fn every_setting(r: &Recipe) -> Vec<(&'static str, Kind)> {
         chroma_detail: _,
         chroma_smoothness: _,
     } = effects;
+    // Keep the per-effect ownership exhaustive when the native film model grows.
+    let crate::model::film::FilmEffects {
+        enabled: _,
+        halation_enabled: _,
+        halation_amount: _,
+        halation_spread: _,
+        halation_threshold: _,
+        halation_hue: _,
+        bloom_enabled: _,
+        bloom_amount: _,
+        bloom_spread: _,
+        bloom_threshold: _,
+        bloom_protection: _,
+        bloom_saturation: _,
+        halation_source_limiter: _,
+        halation_background_gain: _,
+        halation_smoothness: _,
+        halation_global_diffusion: _,
+        halation_amplify: _,
+        halation_blue_compensation: _,
+        bloom_source_limiter: _,
+        bloom_details: _,
+        bloom_amplify: _,
+        grain_amount: _,
+        grain_size: _,
+        grain_shadows: _,
+        grain_midtones: _,
+        grain_highlights: _,
+        grain_color: _,
+        grain_resolution: _,
+        grain_enabled: _,
+        grain_seed: _,
+        compression_impact: _,
+        compression_range: _,
+        compression_white_point: _,
+        compression_color_density: _,
+        compression_enabled: _,
+    } = effects.film;
     vec![
         ("lens_builtin", Group(LensProfileCorrections)),
         ("lens_profile", Group(LensProfileCorrections)),
@@ -766,6 +847,47 @@ pub(crate) fn every_setting(r: &Recipe) -> Vec<(&'static str, Kind)> {
         ("effects.grain_size", Group(Grain)),
         ("effects.grain_roughness", Group(Grain)),
         ("effects.grain_seed", Group(Grain)),
+        ("effects.film.enabled", Derived),
+        ("effects.film.halation_enabled", Group(Halation)),
+        ("effects.film.halation_amount", Group(Halation)),
+        ("effects.film.halation_spread", Group(Halation)),
+        ("effects.film.halation_threshold", Group(Halation)),
+        ("effects.film.halation_hue", Group(Halation)),
+        ("effects.film.bloom_enabled", Group(Bloom)),
+        ("effects.film.bloom_amount", Group(Bloom)),
+        ("effects.film.bloom_spread", Group(Bloom)),
+        ("effects.film.bloom_threshold", Group(Bloom)),
+        ("effects.film.bloom_protection", Group(Bloom)),
+        ("effects.film.bloom_saturation", Group(Bloom)),
+        ("effects.film.halation_source_limiter", Group(Halation)),
+        ("effects.film.halation_background_gain", Group(Halation)),
+        ("effects.film.halation_smoothness", Group(Halation)),
+        ("effects.film.halation_global_diffusion", Group(Halation)),
+        ("effects.film.halation_amplify", Group(Halation)),
+        ("effects.film.halation_blue_compensation", Group(Halation)),
+        ("effects.film.bloom_source_limiter", Group(Bloom)),
+        ("effects.film.bloom_details", Group(Bloom)),
+        ("effects.film.bloom_amplify", Group(Bloom)),
+        ("effects.film.grain_amount", Group(FilmGrain)),
+        ("effects.film.grain_size", Group(FilmGrain)),
+        ("effects.film.grain_shadows", Group(FilmGrain)),
+        ("effects.film.grain_midtones", Group(FilmGrain)),
+        ("effects.film.grain_highlights", Group(FilmGrain)),
+        ("effects.film.grain_color", Group(FilmGrain)),
+        ("effects.film.grain_resolution", Group(FilmGrain)),
+        ("effects.film.grain_enabled", Group(FilmGrain)),
+        ("effects.film.grain_seed", Group(FilmGrain)),
+        ("effects.film.compression_impact", Group(FilmCompression)),
+        ("effects.film.compression_range", Group(FilmCompression)),
+        (
+            "effects.film.compression_white_point",
+            Group(FilmCompression),
+        ),
+        (
+            "effects.film.compression_color_density",
+            Group(FilmCompression),
+        ),
+        ("effects.film.compression_enabled", Group(FilmCompression)),
         ("effects.vignette", Group(PostCropVignetting)),
         ("effects.vignette_midpoint", Group(PostCropVignetting)),
         ("effects.vignette_roundness", Group(PostCropVignetting)),

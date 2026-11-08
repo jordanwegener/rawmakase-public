@@ -27,6 +27,20 @@ pub(crate) const LENSFUN_KEYS: [&str; 7] = [
 /// A fitted camera look carried whole (`camera_profiles::fitted::carried`): no
 /// other application can rebuild it from its name.
 pub(crate) const FITTED_PROFILE_KEY: &str = "rawmakase:FittedProfile";
+/// Complete native film state in photo sidecars. Presets use the selected child
+/// packets below so applying one effect preserves the others.
+pub(crate) const FILM_EFFECTS_KEY: &str = "rawmakase:FilmEffects";
+/// Earlier sidecars and combined presets carried only Halation and Bloom.
+pub(crate) const FILM_DIFFUSION_KEY: &str = "rawmakase:FilmDiffusion";
+pub(crate) const FILM_CHILDREN: [(crate::model::settings_groups::SettingGroup, &str, &str); 4] = {
+    use crate::model::settings_groups::SettingGroup::*;
+    [
+        (Halation, "rawmakase:FilmHalation", "halation_"),
+        (Bloom, "rawmakase:FilmBloom", "bloom_"),
+        (FilmGrain, "rawmakase:FilmGrain", "grain_"),
+        (FilmCompression, "rawmakase:FilmCompression", "compression_"),
+    ]
+};
 /// A settings key as XMP writes it: Camera Raw's under `crs:`, RAWmakase's own as
 /// they are.
 pub(crate) fn qualified(key: &str) -> String {

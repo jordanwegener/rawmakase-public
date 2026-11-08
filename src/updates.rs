@@ -18,14 +18,14 @@ pub const INTERVAL: Duration = Duration::from_secs(60 * 60);
 
 const CONFIG: UpdateConfig = UpdateConfig {
     macos: MacConfig {
-        bundle_ids: &["io.github.pch.rawmakase"],
+        bundle_ids: &["io.github.jordanwegener.rawmakase-public"],
         executable_names: &[],
         legacy_bundle_names: &[],
     },
     mac_target: MacTarget::Arm64Only,
     publisher_key: Some(include_str!("../assets/update-public-key.hex")),
     ..UpdateConfig::new(
-        "pch/rawmakase",
+        "jordanwegener/rawmakase-public",
         "RAWmakase",
         "rawmakase",
         env!("CARGO_PKG_VERSION"),

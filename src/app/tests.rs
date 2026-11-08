@@ -8553,6 +8553,145 @@ fn centre(node: &egui::accesskit::Node) -> Pos2 {
     let b = node.bounds().expect("placed");
     Pos2::new(((b.x0 + b.x1) / 2.) as f32, ((b.y0 + b.y1) / 2.) as f32)
 }
+
+#[test]
+fn film_effects_have_individual_switches_outside_the_effects_panel() {
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    ctx.all_styles_mut(|s| s.animation_time = 0.);
+    let mut editor =
+        Editor::with_context(&ctx, None, crate::app::session::Session::default(), None);
+    editor.module = Module::Develop;
+    editor.document.metadata = Some(Metadata {
+        width: 160,
+        height: 96,
+        ..Default::default()
+    });
+    editor.document.edit.setup_mut().effects.film =
+        crate::model::film::FilmEffects::preset(crate::model::film::FilmFormat::Standard35);
+    let before = editor.document.edit.recipe().effects.film;
+    let collapsed: std::collections::BTreeSet<String> = [
+        "Basic",
+        "Tone Curve",
+        "Color Mixer",
+        "Color Grading",
+        "Detail",
+        "Lens Corrections",
+        "Transform",
+        "Effects",
+        "Calibration",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    ctx.data_mut(|d| d.insert_temp(widgets::collapsed_sections_id(), collapsed));
+    // The header switch uses the same widget as the other sections. Bypass must
+    // preserve both children, record one edit, and round-trip through Undo/Redo.
+    controls_frame(&ctx, &mut editor, vec![]);
+    let tree = controls_frame(&ctx, &mut editor, vec![]);
+    // Slider captions are painted by the shared control widget; AccessKit
+    // exposes their numeric spin buttons. All seventeen main film controls
+    // must be present; the retained Source Threshold is under Advanced.
+    let numbers: Vec<_> = tree
+        .nodes
+        .iter()
+        .map(|(_, n)| n)
+        .filter(|n| n.role() == egui::accesskit::Role::SpinButton)
+        .collect();
+    assert_eq!(numbers.len(), 17);
+    for number in numbers {
+        assert_eq!(
+            (number.min_numeric_value(), number.max_numeric_value()),
+            (Some(0.), Some(100.))
+        );
+    }
+    let master = tree
+        .nodes
+        .iter()
+        .map(|(_, n)| n)
+        .find(|n| n.label() == Some("Film Effects enabled"))
+        .expect("Film Effects header switch");
+    let [down, up] = press_and_release(centre(master));
+    controls_frame(&ctx, &mut editor, down);
+    controls_frame(&ctx, &mut editor, up);
+    let disabled = editor.document.edit.recipe().effects.film;
+    assert!(!disabled.enabled);
+    assert_eq!(disabled.values(), before.values());
+    assert_eq!(
+        (disabled.halation_enabled, disabled.bloom_enabled),
+        (before.halation_enabled, before.bloom_enabled)
+    );
+    in_edit_frame(&ctx, &mut editor, |e| e.undo());
+    assert_eq!(editor.document.edit.recipe().effects.film, before);
+    in_edit_frame(&ctx, &mut editor, |e| e.redo());
+    assert_eq!(editor.document.edit.recipe().effects.film, disabled);
+    in_edit_frame(&ctx, &mut editor, |e| e.undo());
+    for (label, halation, bloom) in [
+        ("Halation", false, true),
+        ("Bloom", false, false),
+        ("Halation", true, false),
+    ] {
+        controls_frame(&ctx, &mut editor, vec![]);
+        let tree = controls_frame(&ctx, &mut editor, vec![]);
+        assert!(
+            tree.nodes
+                .iter()
+                .any(|(_, n)| n.label() == Some("Film Effects enabled")),
+            "missing Film Effects section toggle"
+        );
+        let switch = tree
+            .nodes
+            .iter()
+            .map(|(_, n)| n)
+            .find(|n| n.label() == Some(label))
+            .unwrap_or_else(|| panic!("no {label} switch in Film Effects"));
+        let [down, up] = press_and_release(centre(switch));
+        controls_frame(&ctx, &mut editor, down);
+        controls_frame(&ctx, &mut editor, up);
+        let film = editor.document.edit.recipe().effects.film;
+        assert_eq!(film.halation_enabled, halation);
+        assert_eq!(film.bloom_enabled, bloom);
+        assert_eq!(film.values(), before.values());
+    }
+    // The independent Halation profile menu must leave Bloom, its bypass and the
+    // shared master untouched. Exercise the actual dropdown and selected item.
+    let snapshot = editor.document.edit.recipe().effects.film;
+    let tree = controls_frame(&ctx, &mut editor, vec![]);
+    let profile = tree
+        .nodes
+        .iter()
+        .map(|(_, n)| n)
+        .filter(|n| {
+            n.role() == egui::accesskit::Role::ComboBox && n.value() == Some("35 mm / Super 35")
+        })
+        // Both profile boxes start at 35 mm. Select the upper Halation box,
+        // independently of the accessibility update's node iteration order.
+        .min_by(|a, b| centre(a).y.total_cmp(&centre(b).y))
+        .expect("Halation format selector");
+    let [down, up] = press_and_release(centre(profile));
+    controls_frame(&ctx, &mut editor, down);
+    controls_frame(&ctx, &mut editor, up);
+    let menu = controls_frame(&ctx, &mut editor, vec![]);
+    let profile = menu
+        .nodes
+        .iter()
+        .map(|(_, n)| n)
+        .find(|n| n.label().or(n.value()) == Some("35 mm / Super 35 No Remjet"))
+        .expect("No Remjet format choice");
+    let [down, up] = press_and_release(centre(profile));
+    controls_frame(&ctx, &mut editor, down);
+    controls_frame(&ctx, &mut editor, up);
+    let chosen = editor.document.edit.recipe().effects.film;
+    assert_eq!(
+        chosen.halation_format(),
+        Some(crate::model::film::FilmFormat::Strong35)
+    );
+    assert_eq!(chosen.bloom_values(), snapshot.bloom_values());
+    assert_eq!(chosen.bloom_enabled, snapshot.bloom_enabled);
+    assert_eq!(chosen.enabled, snapshot.enabled);
+    in_edit_frame(&ctx, &mut editor, |e| e.undo());
+    assert_eq!(editor.document.edit.recipe().effects.film, snapshot);
+}
 /// A raw photo's Profile menu offers Import .cube LUTs…, which opens the window at
 /// sRGB. Choosing Rec. 2020, the last of Create Profile's five spaces, and Choose
 /// Files… asks for the file chooser for Rec. 2020 LUTs; Cancel asks for nothing; the
@@ -8770,10 +8909,13 @@ fn the_basic_panel_offers_relative_white_balance_for_a_jpeg() {
     let labels: Vec<String> = menu
         .nodes
         .iter()
+        // Other profile boxes can also show Custom. Count menu choices, not
+        // selected text in any closed combo box elsewhere in the panel.
+        .filter(|(_, n)| n.role() != Role::ComboBox)
         .filter_map(|(_, n)| n.label().or(n.value()).map(String::from))
         .collect();
-    // The box shows As Shot, and the menu offers it with Auto and Custom.
-    assert_eq!(count(&labels, "As Shot"), 2, "{labels:?}");
+    // The open WB menu offers As Shot, Auto and Custom.
+    assert_eq!(count(&labels, "As Shot"), 1, "{labels:?}");
     for offered in ["Auto", "Custom"] {
         assert_eq!(count(&labels, offered), 1, "{offered}: {labels:?}");
     }
@@ -9430,4 +9572,128 @@ fn an_import_keeps_a_fitted_default_until_a_profile_fits() {
         super::camera_look::keep_fitted_default(&had, &m, imported.clone()),
         imported
     );
+}
+
+#[test]
+fn additional_film_pages_are_visible_and_their_switches_and_patterns_record_edits() {
+    use egui::accesskit::Role;
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    ctx.all_styles_mut(|s| s.animation_time = 0.);
+    let mut editor =
+        Editor::with_context(&ctx, None, crate::app::session::Session::default(), None);
+    editor.module = Module::Develop;
+    editor.document.metadata = Some(Metadata {
+        width: 160,
+        height: 96,
+        ..Default::default()
+    });
+    let collapsed: std::collections::BTreeSet<String> = [
+        "Basic",
+        "Tone Curve",
+        "Color Mixer",
+        "Color Grading",
+        "Detail",
+        "Lens Corrections",
+        "Transform",
+        "Effects",
+        "Calibration",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    ctx.data_mut(|d| d.insert_temp(widgets::collapsed_sections_id(), collapsed));
+    controls_frame(&ctx, &mut editor, vec![]);
+    let node = |tree: &egui::accesskit::TreeUpdate, label: &str, role: Option<Role>| {
+        tree.nodes
+            .iter()
+            .map(|(_, n)| n)
+            .find(|n| n.label().or(n.value()) == Some(label) && role.is_none_or(|r| n.role() == r))
+            .cloned()
+            .unwrap_or_else(|| panic!("missing {label} {role:?}"))
+    };
+    for (tab, label, switch, count) in [
+        (1, "Film Grain", "Film Grain", 7),
+        (2, "Compression", "Film Compression", 4),
+    ] {
+        // A visible page selector must work without changing the recipe or history.
+        let before = editor.document.edit.recipe().clone();
+        let history = editor.document.edit.history().id();
+        let tree = controls_frame(&ctx, &mut editor, vec![]);
+        let [down, up] = press_and_release(centre(&node(&tree, label, None)));
+        controls_frame(&ctx, &mut editor, down);
+        let tree = controls_frame(&ctx, &mut editor, up);
+        assert_eq!(super::inspector::film_controls::selected(&ctx), tab);
+        assert_eq!(*editor.document.edit.recipe(), before);
+        assert_eq!(editor.document.edit.history().id(), history);
+        assert_eq!(
+            tree.nodes
+                .iter()
+                .filter(|(_, n)| n.role() == Role::SpinButton)
+                .count(),
+            count
+        );
+        let numbers: Vec<_> = tree
+            .nodes
+            .iter()
+            .map(|(_, n)| n)
+            .filter(|n| n.role() == Role::SpinButton)
+            .collect();
+        if tab == 2 {
+            assert!(numbers.iter().any(|n| {
+                n.min_numeric_value()
+                    .is_some_and(|v| (v - 50.).abs() < 1e-4)
+                    && n.max_numeric_value()
+                        .is_some_and(|v| (v - 120.).abs() < 1e-4)
+            }));
+        }
+        let [down, up] = press_and_release(centre(&node(&tree, switch, Some(Role::CheckBox))));
+        controls_frame(&ctx, &mut editor, down);
+        controls_frame(&ctx, &mut editor, up);
+        let changed = editor.document.edit.recipe().clone();
+        assert_ne!(changed, before);
+        in_edit_frame(&ctx, &mut editor, |e| e.undo());
+        assert_eq!(*editor.document.edit.recipe(), before);
+        in_edit_frame(&ctx, &mut editor, |e| e.redo());
+        assert_eq!(*editor.document.edit.recipe(), changed);
+        in_edit_frame(&ctx, &mut editor, |e| e.undo());
+    }
+    super::inspector::film_controls::select(&ctx, 1);
+    let before = editor.document.edit.recipe().clone();
+    let tree = controls_frame(&ctx, &mut editor, vec![]);
+    let [down, up] = press_and_release(centre(&node(&tree, "New Pattern", None)));
+    controls_frame(&ctx, &mut editor, down);
+    controls_frame(&ctx, &mut editor, up);
+    assert_eq!(
+        editor.document.edit.recipe().effects.film.grain_seed,
+        before.effects.film.grain_seed + 1
+    );
+    in_edit_frame(&ctx, &mut editor, |e| e.undo());
+    assert_eq!(*editor.document.edit.recipe(), before);
+    let tree = controls_frame(&ctx, &mut editor, vec![]);
+    let profile = tree
+        .nodes
+        .iter()
+        .map(|(_, n)| n)
+        .find(|n| n.role() == Role::ComboBox && n.value() == Some("Custom"))
+        .expect("grain profile");
+    let [down, up] = press_and_release(centre(profile));
+    controls_frame(&ctx, &mut editor, down);
+    controls_frame(&ctx, &mut editor, up);
+    let menu = controls_frame(&ctx, &mut editor, vec![]);
+    let [down, up] = press_and_release(centre(&node(&menu, "8 mm / ISO 50", None)));
+    controls_frame(&ctx, &mut editor, down);
+    controls_frame(&ctx, &mut editor, up);
+    let mut chosen = editor.document.edit.recipe().effects.film;
+    assert_eq!(
+        chosen.grain_format(),
+        Some(crate::model::film::GrainFormat::Small8Iso50)
+    );
+    chosen.copy_grain_from(before.effects.film);
+    assert_eq!(
+        chosen, before.effects.film,
+        "grain profile must preserve every sibling effect"
+    );
+    in_edit_frame(&ctx, &mut editor, |e| e.undo());
+    assert_eq!(*editor.document.edit.recipe(), before);
 }

@@ -2,12 +2,23 @@
 
 */raw·muh·KAH·say/, RAW + omakase*
 
+This community edition adds original **Halation, Bloom, Film Grain and Film
+Compression**, independent section/effect switches, settings-copy selections,
+layerable presets and diagnostic light previews. Film Damage is excluded.
+See [controls and compatibility](docs/film-effects.md) and
+[source provenance](docs/provenance.md). This is an unofficial fork of
+[pch/rawmakase](https://github.com/pch/rawmakase); upstream authors retain their
+copyright and are not responsible for these additions.
+
+Build this edition from source using the instructions below. Links explicitly
+labelled upstream describe the original project rather than a release of this fork.
+
 RAWmakase is a fast, non-destructive RAW photo developer for Linux, macOS and Windows, written in Rust. It develops RAW, JPEG, PNG, TIFF, WebP, AVIF and JPEG XL files with a Lightroom-style set of controls and exports JPEG, 16-bit TIFF or PNG (exporting to WebP, AVIF and JPEG XL is not available yet). It can also import a Lightroom Classic catalog with its ratings, flags, labels, keywords and compatible develop settings, without ever writing to the original catalog or your photos.
 
 ![RAWmakase Develop view with presets, the photo, and the Basic and Tone Curve panels](docs/images/screenshot-2026-10-13-1111.png)
 
 <p align="center">
-  <a href="https://github.com/pch/rawmakase/releases/latest"><strong>⬇ Download the latest version</strong></a><br>
+  <a href="https://github.com/pch/rawmakase/releases/latest"><strong>⬇ Upstream RAWmakase releases</strong></a><br>
   <sub>macOS (Apple Silicon, Intel) · Linux (.deb, .rpm, Arch) · Windows (x86_64, ARM64) · <a href="#install">install notes</a></sub>
 </p>
 
@@ -21,7 +32,7 @@ It is a personal project in active development. It develops photos from almost e
 - **Develop**: white balance and picker, one-click Auto tone and Auto white balance, exposure and tone, Shadows/Highlights, Clarity, Dehaze, point curves and levels, HSL color mixer, three-way color grading, detail (denoise and sharpening), crop, straighten and Transform, lens corrections, effects and calibration.
 - **Spot removal and masks (experimental, early)**: Heal and Clone spots and brushed areas with automatic sources, and brush, gradient and range masks with local adjustments, also imported from Lightroom. Not yet measured against Lightroom.
 - **Library**: SQLite catalogs, folders, ratings, flags, color labels, filtering, and non-destructive Lightroom `.lrcat` import with folder relinking.
-- **Presets and profiles**: 26 built-in presets and your Lightroom XMP presets; RAWmakase's own Standard and Color profiles for every camera with a usable color matrix, plus DCP and XMP camera profiles you import yourself, and `.cube` LUTs imported as looks, as Camera Raw makes them.
+- **Presets and profiles**: 37 upstream presets plus 11 Film Effects presets and your Lightroom XMP presets; RAWmakase's own Standard and Color profiles for every camera with a usable color matrix, plus DCP and XMP camera profiles you import yourself, and `.cube` LUTs imported as looks, as Camera Raw makes them.
 - **Non-destructive**: the contents of your originals are never modified. Edits live in the catalog, and all writes are atomic.
 - **Fast previews**: every change renders at viewport size, with the color and tone stage on the GPU (Metal on macOS, Vulkan on Linux, DirectX 12 on Windows) and a CPU fallback.
 - **Command line**: inspect, render, export thumbnails, import catalogs and profiles, and benchmark without the GUI.
@@ -35,80 +46,16 @@ It is a personal project in active development. It develops photos from almost e
 
 ## Install
 
-Download the package for your system from [GitHub Releases](https://github.com/pch/rawmakase/releases). Older releases may have only the original Arch-built Linux archive; use the requirements in that release's notes.
-
-### Let your agent install it
-
-Point your coding agent to [GitHub Releases](https://github.com/pch/rawmakase/releases) and tell it to install the latest version for your operating system, or give it this prompt:
-
-```text
-Install the latest release of RAWmakase for my operating system from https://github.com/pch/rawmakase/releases. Pick the right package for my OS and CPU architecture, verify it against the release's checksums, install it, and tell me how to launch it.
-```
-
-### Omarchy
-
-Install `rawmakase-bin` from **Omarchy menu → Install → Package**, or from a terminal:
+This edition is currently distributed as source. It has no packaged or signed
+binary release yet. Build from a checkout of this repository:
 
 ```sh
-omarchy pkg add rawmakase-bin
+git clone https://github.com/jordanwegener/rawmakase-public.git
+cd rawmakase-public
 ```
 
-It updates with the rest of the system.
-
-Omarchy makes windows slightly transparent by default, which changes how photos look. To keep RAWmakase fully opaque, add this to your Hyprland `looknfeel.lua`:
-
-```lua
--- Keep RAWmakase fully opaque (opt out of Omarchy's default window opacity)
-o.window("^RAWmakase$", { tag = "-default-opacity", opacity = "1 1" })
-```
-
-### macOS (15 or newer)
-
-Install with Homebrew:
-
-```sh
-brew install --cask pch/tap/rawmakase
-```
-
-Update with `brew upgrade --cask rawmakase`.
-
-Or install the DMG directly:
-
-Choose `rawmakase-v<version>-macos-arm64.dmg` for Apple Silicon or `rawmakase-v<version>-macos-x86_64.dmg` for Intel. Open the DMG, drag **RAWmakase** into **Applications**, and launch it there. Release DMGs are signed and notarized, and include their imaging libraries; Homebrew is not required.
-
-### Linux (x86_64 and aarch64)
-
-Download the package for your architecture (`amd64`/`x86_64` or `arm64`/`aarch64`), then run the matching command from its folder, replacing the filename with the one you downloaded:
-
-| System | Package | Install |
-| --- | --- | --- |
-| Ubuntu 24.04+ / Debian 13+ | `.deb` | `sudo apt install ./rawmakase_<version>_amd64.deb` |
-| Fedora 43+ | `.rpm` | `sudo dnf install ./rawmakase-<version>-1.x86_64.rpm` |
-| Arch Linux (x86_64) | `.pkg.tar.zst` | `sudo pacman -U ./rawmakase-<version>-1-x86_64.pkg.tar.zst` |
-
-Arch packages use system dependencies. A working graphics driver is required; install your desktop's `xdg-desktop-portal` backend for native file dialogs.
-
-**AUR publication is paused.** Install the Arch package directly, or (on Arch Linux ARM too) download and extract `rawmakase-<version>-arch-recipe.tar.gz` into an empty folder and build as a normal user:
-
-```sh
-makepkg -si
-```
-
-The development recipe is in [packaging/arch/rawmakase-git](packaging/arch/rawmakase-git/PKGBUILD).
-
-The `rawmakase-<version>-<arch>-linux.tar.gz` download contains the same bundled imaging libraries as the DEB/RPM packages. Extract it and run `./usr/bin/rawmakase` from the extracted folder. Keep the whole directory together. It requires the same OS/runtime baseline as the packages above; it is not a fully static build.
-
-The `rawmakase-<version>-<arch>.AppImage` download is the same build as a single file: make it executable (`chmod +x`) and run it. It needs the same OS baseline as the packages above (Ubuntu 24.04+, Debian 13+, Fedora 43+; glibc 2.39 or newer), so it does not run on older distributions. On systems without FUSE 2, run it with `APPIMAGE_EXTRACT_AND_RUN=1`. It carries update information, so AppImageUpdate, Gear Lever and similar tools can update it to the newest release, downloading only what changed.
-
-### Windows (10 or newer on x86_64, 11 on ARM64)
-
-Run `rawmakase-v<version>-x86_64-pc-windows-msvc-setup.exe`, or `rawmakase-v<version>-aarch64-pc-windows-msvc-setup.exe` on an ARM64 PC. It installs for your user account only, without administrator rights, and adds RAWmakase to the Start menu. The installer is not code-signed yet, so Microsoft Defender SmartScreen may warn about an unrecognized app: choose **More info → Run anyway**. For a copy without installing, extract `rawmakase-v<version>-<arch>-pc-windows-msvc.zip` and run `rawmakase.exe` from the extracted folder.
-
-### Updates and verification
-
-RAWmakase checks GitHub for a newer release after launch and once an hour, and shows a notice when one is out (turn the check off in Preferences). The Apple Silicon DMG and the Windows installer download and install the update themselves; Intel Macs, the Linux tarball and AppImage, the Windows archive and package-managed installs (Homebrew, DEB, RPM, Arch) are pointed at the release page or their package manager. Settings and catalogs are kept separately from the installed application, so reinstalling over an old version loses nothing.
-
-Each new packaged release includes `SHA256SUMS`. After downloading it beside your package, verify downloaded files on Linux with `sha256sum --ignore-missing -c SHA256SUMS`. On macOS, use `shasum -a 256 <downloaded-file>` and compare the result with that file's entry in `SHA256SUMS`.
+For the original editor's packaged builds, use [upstream releases](https://github.com/pch/rawmakase/releases).
+Those builds do not include this edition's Film Effects.
 
 ### From source (Linux and macOS)
 
@@ -193,8 +140,9 @@ Exports are always sRGB. The display defaults to sRGB; pick a monitor ICC profil
 ## Development
 
 Start with the [code map](docs/code-map.md) and the [architecture guide](docs/architecture.md).
-The [website source and deployment guide](website/README.md) live in `website/`.
-The [usage stats service](stats/README.md) in `stats/` still counts reports from older releases; the app no longer sends them.
+The inherited [website](website/README.md) and [stats service](stats/README.md)
+source remain as upstream reference material. This fork does not deploy them;
+the app sends no usage reports.
 
 ```sh
 make check    # cargo fmt --check, clippy -D warnings, cargo test
@@ -218,7 +166,12 @@ The public part of the color corpus runs with every `cargo test`: synthetic char
 
 GPU tests are ignored as well; run them with `cargo test -p rawmakase-engine --lib gpu -- --ignored` on a machine with a compute adapter.
 
-Application CI runs `make check`, a release build, an Arch package build and a `cargo deny` license and advisory audit. Website-only pushes and pull requests run the Hugo build instead, and stats-only changes run the stats service's tests; edits to either workflow also run the workflow linter. A stable `vX.Y.Z` tag on `main` matching `Cargo.toml` builds both macOS DMGs, the Linux packages and the Windows installer. Publication waits for Apple notarization and package checks, then refreshes the website's download links. See [packaging/RELEASING.md](packaging/RELEASING.md) for credentials, rehearsal runs, supported systems and the AUR pause.
+Application CI checks formatting, Clippy, workspace tests, dependency rules and
+licenses. Packaging checks validate the configuration and platform installers.
+This source-only edition has no signed binary release yet. A future release
+requires this fork's credentials and full platform validation; see
+[packaging/RELEASING.md](packaging/RELEASING.md). No website, Homebrew tap or
+external package repository is published automatically.
 
 ## License
 

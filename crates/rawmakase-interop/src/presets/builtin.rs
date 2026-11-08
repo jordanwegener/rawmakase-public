@@ -1,11 +1,19 @@
 //! Presets shipped with RAWmakase, embedded in the binary from `assets/presets`.
-//! They are ordinary Lightroom XMP presets, so they also work in Lightroom.
+//! Standard controls use Lightroom XMP; Film Effects use native extensions.
 use crate::xmp::{Preset, parse};
 use anyhow::{Context, Result};
 use std::path::Path;
 
 /// Built-in groups in the order the Presets panel lists them, before imported ones.
-pub const GROUPS: &[&str] = &["Color", "Creative", "B&W", "Curve", "Grain", "Vignetting"];
+pub const GROUPS: &[&str] = &[
+    "Color",
+    "Creative",
+    "B&W",
+    "Curve",
+    "Grain",
+    "Vignetting",
+    "Film Effects",
+];
 
 macro_rules! files {
     ($($path:literal),* $(,)?) => {
@@ -40,6 +48,17 @@ pub(super) const FILES: &[(&str, &str)] = files![
     "Vignetting/Subtle.xmp",
     "Vignetting/Strong.xmp",
     "Vignetting/Light.xmp",
+    "FilmEffects/Halation - Soft Amber.xmp",
+    "FilmEffects/Halation - Warm Rim.xmp",
+    "FilmEffects/Halation - Red Neon.xmp",
+    "FilmEffects/Halation - No Remjet.xmp",
+    "FilmEffects/Bloom - Fine Glow.xmp",
+    "FilmEffects/Bloom - Soft Lights.xmp",
+    "FilmEffects/Bloom - Dreamy.xmp",
+    "FilmEffects/Bloom - Color Glow.xmp",
+    "FilmEffects/Film - Cinematic Soft.xmp",
+    "FilmEffects/Film - Night Lights.xmp",
+    "FilmEffects/Film - Dream Sequence.xmp",
 ];
 
 fn load(path: &str, text: &str) -> Result<Preset> {

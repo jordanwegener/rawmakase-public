@@ -206,6 +206,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn grain_and_vignette_panel_does_not_bypass_or_reset_film_effects() {
+        let mut r = Recipe::default();
+        r.effects.film =
+            crate::model::film::FilmEffects::preset(crate::model::film::FilmFormat::Standard35);
+        r.effects.grain = 0.4;
+        r.panels.set(Panel::Effects, PanelState::Off);
+        assert_eq!(r.as_rendered().effects.film, r.effects.film);
+        assert_eq!(r.as_rendered().effects.grain, 0.);
+        let film = r.effects.film;
+        r.effects.reset_post_crop();
+        assert_eq!(r.effects.film, film);
+        assert_eq!(
+            crate::model::settings_groups::SettingGroup::FilmDiffusion.panel(),
+            None
+        );
+    }
+
+    #[test]
     fn a_change_inside_one_panel_is_held_by_that_panel_alone() {
         let before = Recipe::default();
         let mut after = before.clone();

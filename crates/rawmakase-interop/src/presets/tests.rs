@@ -232,3 +232,139 @@ fn builtin_presets_offer_an_amount() {
         }
     }
 }
+
+#[test]
+fn film_effect_presets_layer_without_replacing_the_existing_look() -> Result<()> {
+    use crate::model::{
+        film::{FilmEffects, FilmFormat},
+        masks::{LocalAdjust, MaskComponent, MaskGroup, MaskShape},
+    };
+    let m = x100f();
+    let mut profiles = open_profiles(&m);
+    let mut look = (*profiles[0]).clone();
+    look.name = "Existing creative look".into();
+    profiles.push(std::sync::Arc::new(look));
+    let mut base = Recipe::with_profiles(&m, &profiles);
+    base.profile = profiles.last().cloned();
+    base.profile_amount = 0.73;
+    base.temperature = 2903.;
+    base.tint = 6.;
+    base.update_wb(&m);
+    base.auto_white_balance = Some([base.temperature, base.tint]);
+    base.exposure = 0.85;
+    base.contrast = -0.17;
+    base.curve.insert([0.35, 0.21]);
+    base.effects.channels[2].insert([0.7, 0.8]);
+    base.hsl[3] = [0.12, -0.2, 0.15];
+    base.effects.grain = 0.22;
+    base.effects.grain_seed = 721;
+    base.masks.push(MaskGroup {
+        components: vec![MaskComponent::new(MaskShape::Linear {
+            from: [0.2, 0.3],
+            to: [0.8, 0.7],
+        })],
+        adjust: LocalAdjust {
+            exposure: 0.4,
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    base.effects.film = FilmEffects::preset(FilmFormat::Strong35);
+    base.effects.film.enabled = false;
+    base.effects.film.bloom_enabled = false;
+    base.effects.film.grain_amount = 0.37;
+    base.effects.film.grain_seed = 987;
+    base.effects.film.grain_color = 0.18;
+    base.effects.film.compression_enabled = true;
+    base.effects.film.compression_white_point = 1.13;
+    base.effects.film.compression_impact = 0.41;
+    let (all, errors) = builtin::presets();
+    assert!(errors.is_empty(), "{errors:?}");
+    let presets: Vec<_> = all.iter().filter(|p| p.group == "Film Effects").collect();
+    assert_eq!(
+        presets.len(),
+        11,
+        "the layerable film preset collection is missing"
+    );
+    let without_film = |mut r: Recipe| {
+        r.effects.film = base.effects.film;
+        r.preset_name.clone_from(&base.preset_name);
+        r.preset_settings.clone_from(&base.preset_settings);
+        r
+    };
+    let mut kinds = [0; 3];
+    for p in presets {
+        let applied = apply_to_photo(p, &base, &m, &profiles, None)?;
+        assert!(
+            applied.skipped.is_empty(),
+            "{}: {:?}",
+            p.name,
+            applied.skipped
+        );
+        assert!(applied.substitute.is_none(), "{}", p.name);
+        let full = applied.recipe;
+        assert_eq!(
+            without_film(full.clone()),
+            base,
+            "{} replaced the underlying look",
+            p.name
+        );
+        assert!(full.effects.film.enabled, "{}", p.name);
+        let mut preserved = full.effects.film;
+        preserved.copy_diffusion_from(base.effects.film);
+        assert_eq!(
+            preserved, base.effects.film,
+            "{} changed another film effect",
+            p.name
+        );
+        if p.settings.contains_key("rawmakase:FilmHalation") {
+            kinds[0] += 1;
+            assert_eq!(
+                full.effects.film.bloom_values(),
+                base.effects.film.bloom_values()
+            );
+            assert_eq!(
+                full.effects.film.bloom_enabled,
+                base.effects.film.bloom_enabled
+            );
+            assert!(full.effects.film.halation_active());
+        } else if p.settings.contains_key("rawmakase:FilmBloom") {
+            kinds[1] += 1;
+            assert_eq!(
+                full.effects.film.halation_values(),
+                base.effects.film.halation_values()
+            );
+            assert_eq!(
+                full.effects.film.halation_enabled,
+                base.effects.film.halation_enabled
+            );
+            assert!(full.effects.film.bloom_active());
+        } else {
+            kinds[2] += 1;
+            assert!(p.settings.contains_key("rawmakase:FilmDiffusion"));
+            assert!(full.effects.film.halation_active() && full.effects.film.bloom_active());
+        }
+        let amount = amount::PresetAmount::new(p, base.clone(), full.clone()).unwrap();
+        assert_eq!(amount.at(0., &m), base);
+        assert_eq!(amount.at(1., &m), full);
+        for t in [0.25, 0.5, 1.5, 2.] {
+            let r = amount.at(t, &m);
+            r.validate()?;
+            let mut preserved = r.effects.film;
+            preserved.copy_diffusion_from(base.effects.film);
+            assert_eq!(
+                preserved, base.effects.film,
+                "{} at {t} changed another film effect",
+                p.name
+            );
+            assert_eq!(
+                without_film(r),
+                base,
+                "{} at {t} changed the underlying look",
+                p.name
+            );
+        }
+    }
+    assert_eq!(kinds, [4, 4, 3]);
+    Ok(())
+}

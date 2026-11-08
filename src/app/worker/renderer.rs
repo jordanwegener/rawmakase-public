@@ -253,7 +253,7 @@ struct PaneState {
     quick_fit: bool,
     /// The whole photo's histogram for the last edit shown at 100%, so panning
     /// there does not render the whole photo again.
-    whole_shown: Option<(Arc<crate::camera_data::CameraImage>, Recipe, Histogram)>,
+    whole_shown: Option<WholeHistogram>,
 }
 
 fn render(
@@ -305,6 +305,7 @@ fn render(
                 ))
             }
         });
+        processor.set_film_view(job.overlay.film_view());
         let t = Instant::now();
         let mut warning = String::new();
         let monitor = match (&job.monitor, textures.is_some()) {
@@ -386,7 +387,7 @@ fn render(
                 warning = format!(" • ICC failed: {e}");
             }
             match job.overlay {
-                super::Overlay::None => {}
+                super::Overlay::None | super::Overlay::Film(_) => {}
                 super::Overlay::Spots(threshold) => {
                     rgb = develop::retouch::visualize_spots(&out, threshold);
                 }
@@ -524,8 +525,9 @@ fn render(
                 let out = {
                     // While editing at 100%, a reduced preview keeps sliders responsive;
                     // a newer job cancels the full-resolution render that follows.
-                    // Zooming in goes straight to the full region, over the enlarged Fit.
-                    if *showing_region && !*quick_region {
+                    // CPU film finishing can also make the first zoom expensive.
+                    // Show a current regional draft before that first detailed render.
+                    if (*showing_region && !*quick_region) || job.recipe.effects.film.active() {
                         let out = processor.render_region_preview_to(
                             &job.image,
                             &job.recipe,
@@ -616,6 +618,12 @@ fn render(
 }
 
 type Histogram = Box<crate::rendered::Histogram>;
+struct WholeHistogram {
+    image: Arc<crate::camera_data::CameraImage>,
+    recipe: Recipe,
+    film_view: develop::film::View,
+    histogram: Histogram,
+}
 
 /// At 100% the view shows a region, but the histogram describes the whole
 /// photo, as Lightroom's does: from the Fit render of the same edit when there
@@ -625,16 +633,22 @@ fn whole_histogram(
     job: &RenderJob,
     processor: &mut develop::PreviewRenderer,
     fit: &Option<Shown>,
-    whole: &mut Option<(Arc<crate::camera_data::CameraImage>, Recipe, Histogram)>,
+    whole: &mut Option<WholeHistogram>,
     tx: &Sender<Event>,
     ctx: &egui::Context,
 ) -> anyhow::Result<()> {
-    let same = |image: &Arc<crate::camera_data::CameraImage>, recipe: &Recipe| {
-        Arc::ptr_eq(image, &job.image) && *recipe == job.recipe
+    let same = |image: &Arc<crate::camera_data::CameraImage>, recipe: &Recipe, view| {
+        Arc::ptr_eq(image, &job.image) && *recipe == job.recipe && view == job.overlay.film_view()
     };
-    let histogram = if let Some((.., histogram)) = whole.as_ref().filter(|(i, r, _)| same(i, r)) {
-        histogram.clone()
-    } else if let Some(shown) = fit.as_ref().filter(|s| same(&s.image, &s.recipe)) {
+    let histogram = if let Some(hit) = whole
+        .as_ref()
+        .filter(|hit| same(&hit.image, &hit.recipe, hit.film_view))
+    {
+        hit.histogram.clone()
+    } else if let Some(shown) = fit
+        .as_ref()
+        .filter(|s| same(&s.image, &s.recipe, s.overlay.film_view()))
+    {
         match &shown.out {
             Shot::Pixels(out) => Box::new(out.histogram()),
             Shot::Frame { histogram, .. } => histogram.clone(),
@@ -650,7 +664,12 @@ fn whole_histogram(
         )?;
         Box::new(out.pixels().histogram())
     };
-    *whole = Some((job.image.clone(), job.recipe.clone(), histogram.clone()));
+    *whole = Some(WholeHistogram {
+        image: job.image.clone(),
+        recipe: job.recipe.clone(),
+        film_view: job.overlay.film_view(),
+        histogram: histogram.clone(),
+    });
     if !job.cancel.load(Ordering::Relaxed) {
         send(
             tx,
@@ -694,6 +713,54 @@ mod tests {
             scale_factor: 1.,
             scale_clipped: 0,
         })
+    }
+    #[test]
+    fn film_diagnostic_invalidates_whole_and_fit_histogram_reuse() -> anyhow::Result<()> {
+        let image = image();
+        let recipe = Recipe::default();
+        let normal = crate::rendered::Rendered {
+            width: 2,
+            height: 2,
+            pixels: vec![[0.3; 3]; 4],
+        };
+        let expected = Box::new(normal.histogram());
+        let mut job = RenderJob {
+            id: 1,
+            pane: Pane::After,
+            image: image.clone(),
+            recipe: recipe.clone(),
+            max_edge: 60,
+            cancel: Arc::new(AtomicBool::new(false)),
+            region: Some([0, 0, 20, 20]),
+            monitor: None,
+            clipping: crate::rendered::ClipOverlay::NONE,
+            navigator: false,
+            thumbnail: false,
+            samples: false,
+            overlay: super::super::Overlay::None,
+            drawn: Vec::new(),
+        };
+        let fit = Some(Shown::new(&job, Shot::Pixels(normal)));
+        let mut whole = Some(WholeHistogram {
+            image,
+            recipe,
+            film_view: develop::film::View::Image,
+            histogram: expected.clone(),
+        });
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let ctx = egui::Context::default();
+        let mut processor = develop::PreviewRenderer::default();
+        job.overlay = super::super::Overlay::Film(develop::film::View::Halation);
+        processor.set_film_view(develop::film::View::Halation);
+        whole_histogram(&job, &mut processor, &fit, &mut whole, &tx, &ctx)?;
+        let h = &whole.as_ref().unwrap().histogram;
+        assert_eq!(h.bins[0][0], h.total());
+        assert_ne!(h, &expected);
+        job.overlay = super::super::Overlay::None;
+        processor.set_film_view(develop::film::View::Image);
+        whole_histogram(&job, &mut processor, &fit, &mut whole, &tx, &ctx)?;
+        assert_eq!(whole.unwrap().histogram, expected);
+        Ok(())
     }
     /// Renders one job and returns its published stages and final pixels.
     fn run(
@@ -765,6 +832,25 @@ mod tests {
                 _ => {}
             }
         }
+    }
+    #[test]
+    fn first_zoom_with_film_shows_a_draft_then_detail_and_reuses_the_detail() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = renderer(tx, egui::Context::default());
+        let image = image();
+        let mut recipe = Recipe::default();
+        recipe.effects.film.grain_amount = 0.35;
+        let region = Some([10, 10, 80, 60]);
+        run(&worker, &rx, 1, &image, &recipe, None);
+        let zoomed = run(&worker, &rx, 2, &image, &recipe, region);
+        assert_eq!(
+            zoomed.iter().map(|s| s.0).collect::<Vec<_>>(),
+            vec![RenderStage::Draft, RenderStage::Region]
+        );
+        run(&worker, &rx, 3, &image, &recipe, None);
+        let cached = run(&worker, &rx, 4, &image, &recipe, region);
+        assert_eq!(cached.len(), 1);
+        assert_eq!(cached[0], zoomed[1]);
     }
     #[test]
     fn switching_views_shows_the_previous_images_without_drafts() {

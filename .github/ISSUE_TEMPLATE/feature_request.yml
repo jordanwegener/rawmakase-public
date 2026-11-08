@@ -7,11 +7,11 @@ body:
         Please suggest one feature per issue and use a title that describes the desired improvement.
 
         Before filling this in:
-        1. Search [existing issues](https://github.com/pch/rawmakase/issues?q=is%3Aissue) for similar requests. If one already covers your idea, add a reaction or useful details there.
-        2. Check the [README](https://github.com/pch/rawmakase#readme) and [latest release](https://github.com/pch/rawmakase/releases/latest) for existing support.
+        1. Search [existing issues](https://github.com/jordanwegener/rawmakase-public/issues?q=is%3Aissue) for similar requests. If one already covers your idea, add a reaction or useful details there.
+        2. Check the [README](https://github.com/jordanwegener/rawmakase-public#readme) and [latest release](https://github.com/jordanwegener/rawmakase-public/releases/latest) for existing support.
         3. Describe the task you want to accomplish and what a successful result would look like. You do not need to propose an implementation.
 
-        If an existing feature fails to work as expected, use the [bug-report form](https://github.com/pch/rawmakase/issues/new?template=bug_report.yml).
+        If an existing feature fails to work as expected, use the [bug-report form](https://github.com/jordanwegener/rawmakase-public/issues/new?template=bug_report.yml).
 
         Attachments are public. Share only material you have permission to publish; check photos and metadata for personal information. Do not upload private catalogs or proprietary Adobe profiles.
 

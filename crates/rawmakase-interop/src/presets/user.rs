@@ -307,6 +307,12 @@ pub fn groups_of(preset: &Preset) -> GroupSelection {
         .chain(preset.curves.keys())
         .filter(|k| !k.starts_with("Enable"))
     {
+        if key == crate::xmp::FILM_EFFECTS_KEY {
+            for (group, _, _) in crate::xmp::FILM_CHILDREN {
+                groups.set(group, GroupInclusion::Included);
+            }
+            continue;
+        }
         if let Some(group) = group_of_key(key) {
             groups.set(group, GroupInclusion::Included);
         }
@@ -341,6 +347,47 @@ fn write(path: &Path, replace: Replace, text: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inferred_film_groups_distinguish_complete_and_legacy_packets() -> Result<()> {
+        use crate::model::settings_groups::SettingGroup;
+        let text = crate::xmp::preset_write::preset(
+            &Recipe::default(),
+            &Metadata::default(),
+            &PresetInfo::new("Film", "Test"),
+            &GroupSelection::none(),
+        );
+        let mut preset = crate::xmp::parse(Path::new("film.xmp"), &text)?;
+        for (key, expected) in [
+            (
+                "rawmakase:FilmEffects",
+                vec![
+                    SettingGroup::Halation,
+                    SettingGroup::Bloom,
+                    SettingGroup::FilmGrain,
+                    SettingGroup::FilmCompression,
+                ],
+            ),
+            (
+                "rawmakase:FilmDiffusion",
+                vec![SettingGroup::Halation, SettingGroup::Bloom],
+            ),
+            ("rawmakase:FilmGrain", vec![SettingGroup::FilmGrain]),
+            (
+                "rawmakase:FilmCompression",
+                vec![SettingGroup::FilmCompression],
+            ),
+        ] {
+            preset.settings.clear();
+            preset.settings.insert(key.into(), "{}".into());
+            let mut groups = GroupSelection::none();
+            for group in expected {
+                groups.set(group, GroupInclusion::Included);
+            }
+            assert_eq!(groups_of(&preset), groups, "{key}");
+        }
+        Ok(())
+    }
 
     fn library(dir: &Path) -> crate::presets::Library {
         let mut presets = Vec::new();

@@ -10,6 +10,7 @@ build:
 	cargo build --release --locked
 
 check:
+	python3 scripts/check-public-release.py
 	python3 scripts/deps.py check
 	python3 -m unittest discover -s scripts/corpus
 	scripts/crate-closures.sh
@@ -25,6 +26,7 @@ check:
 install:
 	@test -x $(BIN) || { echo "Run 'make' first to build $(BIN)"; exit 1; }
 	install -Dm755 $(BIN) $(DESTDIR)$(PREFIX)/bin/rawmakase
+	install -Dm644 THIRD_PARTY_NOTICES.txt $(DESTDIR)$(PREFIX)/share/licenses/$(PKGNAME)/THIRD_PARTY_NOTICES.txt
 	install -Dm644 LICENSE $(DESTDIR)$(PREFIX)/share/licenses/$(PKGNAME)/LICENSE
 	install -Dm644 licenses/Adobe-DNG-SDK.txt $(DESTDIR)$(PREFIX)/share/licenses/$(PKGNAME)/Adobe-DNG-SDK.txt
 	install -Dm644 licenses/Hack-MIT-BitstreamVera.txt $(DESTDIR)$(PREFIX)/share/licenses/$(PKGNAME)/Hack-MIT-BitstreamVera.txt

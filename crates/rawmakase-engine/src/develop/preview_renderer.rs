@@ -16,6 +16,7 @@ use std::sync::{Arc, atomic::AtomicBool};
 #[derive(Default)]
 pub struct PreviewRenderer {
     backend: Backend,
+    film_view: super::film::View,
     /// Resolution pyramid of the current photo's recovered image, for Fit and
     /// zoomed-out renders. Holding the recovered image keeps its identity unique.
     pyramid: Option<Pyramid>,
@@ -41,10 +42,15 @@ pub(crate) struct Stages<'a> {
     pub(crate) retouch: &'a mut super::retouch::RetouchCache,
     pub(crate) backend: &'a mut Backend,
     pub(crate) display: Option<&'a gpu::Display>,
+    pub(crate) film_view: super::film::View,
 }
 /// Pixel budget of a reduced 100% drag preview.
 const PREVIEW_PIXELS: u64 = 600_000;
 impl PreviewRenderer {
+    /// Set a transient film diagnostic for subsequent viewport renders only.
+    pub fn set_film_view(&mut self, view: super::film::View) {
+        self.film_view = view;
+    }
     /// A hardware device is optional; failure leaves a fully working CPU renderer.
     pub fn with_gpu() -> Self {
         Self::with_processor(gpu::Processor::new())
@@ -131,6 +137,7 @@ impl PreviewRenderer {
             retouch: &mut self.retouch,
             backend: &mut self.backend,
             display,
+            film_view: self.film_view,
         }
     }
     /// Fit and zoomed-out views from the smallest pyramid level with at least one

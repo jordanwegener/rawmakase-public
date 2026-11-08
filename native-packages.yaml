@@ -4,12 +4,12 @@ tool:
   nfpm: '2.47.0'
 nfpm:
   name: rawmakase
-  maintainer: pch <https://github.com/pch>
+  maintainer: jordanwegener <https://github.com/jordanwegener>
   description: A fast, non-destructive RAW photo developer
-  homepage: https://github.com/pch/rawmakase
+  homepage: https://github.com/jordanwegener/rawmakase-public
   license: MIT
 release:
-  repository: pch/rawmakase
+  repository: jordanwegener/rawmakase-public
   prereleases: true
   checksums: SHA256SUMS
 version_file: Cargo.toml
@@ -48,17 +48,7 @@ assets:
     local: dist/rawmakase-@TAG@-macos-x86_64.dmg
 templates:
   homebrew/rawmakase.rb: packaging/homebrew/rawmakase.rb.in
-repositories:
-  homebrew:
-    url: https://github.com/pch/homebrew-tap.git
-    push_url: https://github.com/pch/homebrew-tap.git
-    branch: main
-    package_path: Casks
-    files:
-      homebrew/rawmakase.rb: Casks/rawmakase.rb
-    version_file: Casks/rawmakase.rb
-    version_pattern: 'version "([^"]+)"'
-    publish: push
+# No external package repository is configured for this edition.
 targets:
   macos-arm64:
     platform: macos
@@ -111,7 +101,7 @@ targets:
     # .zsync file, published beside the AppImage. The app itself only points
     # AppImage users at the release page.
     appimage:
-      update_information: gh-releases-zsync|pch|rawmakase|latest|rawmakase-*-x86_64.AppImage.zsync
+      update_information: gh-releases-zsync|jordanwegener|rawmakase-public|latest|rawmakase-*-x86_64.AppImage.zsync
     input:
       local: dist/rawmakase-@VERSION@-x86_64-linux.tar.gz
       release_asset: rawmakase-@VERSION@-x86_64-linux.tar.gz
@@ -187,7 +177,7 @@ targets:
     # .zsync file, published beside the AppImage. The app itself only points
     # AppImage users at the release page.
     appimage:
-      update_information: gh-releases-zsync|pch|rawmakase|latest|rawmakase-*-aarch64.AppImage.zsync
+      update_information: gh-releases-zsync|jordanwegener|rawmakase-public|latest|rawmakase-*-aarch64.AppImage.zsync
     input:
       local: dist/rawmakase-@VERSION@-aarch64-linux.tar.gz
       release_asset: rawmakase-@VERSION@-aarch64-linux.tar.gz

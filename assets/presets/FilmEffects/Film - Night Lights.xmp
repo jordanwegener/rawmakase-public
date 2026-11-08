@@ -1,0 +1,40 @@
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+    xmlns:rawmakase="https://rawmakase.com/ns/xmp/1.0/"
+   crs:PresetType="Normal"
+   crs:Cluster=""
+   crs:UUID="C1D521A440705E3EA1A6CAD1F3AE2323"
+   crs:SupportsAmount="True"
+   crs:SupportsColor="True"
+   crs:SupportsMonochrome="True"
+   crs:SupportsHighDynamicRange="True"
+   crs:SupportsNormalDynamicRange="True"
+   crs:SupportsSceneReferred="True"
+   crs:SupportsOutputReferred="True"
+   crs:CameraModelRestriction=""
+   crs:Copyright="RAWmakase contributors, MIT licence"
+   crs:ContactInfo=""
+   crs:Version="15.4"
+   crs:RAWmakasePreset="2"
+   crs:HasSettings="True"
+   rawmakase:FilmDiffusion="{&quot;enabled&quot;:true,&quot;halation_enabled&quot;:true,&quot;halation_amount&quot;:0.3,&quot;halation_spread&quot;:0.408,&quot;halation_threshold&quot;:0.88,&quot;halation_hue&quot;:0.23,&quot;halation_source_limiter&quot;:0.377,&quot;halation_background_gain&quot;:0.274,&quot;halation_smoothness&quot;:0.68,&quot;halation_global_diffusion&quot;:0.192,&quot;halation_amplify&quot;:0.336,&quot;halation_blue_compensation&quot;:0.48,&quot;bloom_enabled&quot;:true,&quot;bloom_amount&quot;:0.18,&quot;bloom_spread&quot;:0.382,&quot;bloom_threshold&quot;:0.9,&quot;bloom_protection&quot;:0.72,&quot;bloom_saturation&quot;:0.45,&quot;bloom_source_limiter&quot;:0.48,&quot;bloom_details&quot;:0.682,&quot;bloom_amplify&quot;:0.209}">
+   <crs:Name>
+    <rdf:Alt>
+     <rdf:li xml:lang="x-default">Film - Night Lights</rdf:li>
+    </rdf:Alt>
+   </crs:Name>
+   <crs:Group>
+    <rdf:Alt>
+     <rdf:li xml:lang="x-default">Film Effects</rdf:li>
+    </rdf:Alt>
+   </crs:Group>
+   <crs:Description>
+    <rdf:Alt>
+     <rdf:li xml:lang="x-default">Apply after a color or film look. Changes only Halation and Bloom.</rdf:li>
+    </rdf:Alt>
+   </crs:Description>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>

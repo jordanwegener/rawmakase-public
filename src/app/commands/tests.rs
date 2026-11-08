@@ -941,3 +941,129 @@ fn a_cmyk_jpeg_is_not_editable_by_command() -> anyhow::Result<()> {
     assert_eq!(e.document.catalog_photo, None);
     Ok(())
 }
+
+#[test]
+fn film_preview_commands_leave_the_saved_recipe_and_history_unchanged() {
+    let ctx = egui::Context::default();
+    let mut editor =
+        Editor::with_context(&ctx, None, crate::app::session::Session::default(), None);
+    let before = editor.document.edit.recipe().clone();
+    let revision = editor.document.edit.history().id();
+    for view in [
+        crate::develop::film::View::Halation,
+        crate::develop::film::View::Bloom,
+        crate::develop::film::View::Image,
+    ] {
+        editor
+            .execute_action(Action::FilmPreview(view), None)
+            .unwrap();
+        assert_eq!(editor.preview.film_view, view);
+        assert_eq!(*editor.document.edit.recipe(), before);
+        assert_eq!(editor.document.edit.history().id(), revision);
+    }
+}
+
+#[test]
+fn film_switch_commands_preserve_values_and_support_undo_redo() {
+    let (mut e, ctx) = editor();
+    e.document.edit.setup_mut().effects.film =
+        crate::model::film::FilmEffects::preset(crate::model::film::FilmFormat::Strong35);
+    let before = e.document.edit.recipe().effects.film;
+    for action in [Action::Halation(false), Action::Bloom(false)] {
+        e.execute_command(Command::new(Operation::Action(action)), &ctx)
+            .unwrap();
+        let off = e.document.edit.recipe().effects.film;
+        assert_eq!(off.values(), before.values());
+        if matches!(action, Action::Halation(_)) {
+            assert!(!off.halation_enabled && off.bloom_enabled);
+            assert_eq!(json(e.command_state())["halation_enabled"], false);
+        } else {
+            assert!(off.halation_enabled && !off.bloom_enabled);
+            assert_eq!(json(e.command_state())["bloom_enabled"], false);
+        }
+        e.execute_command(Command::new(Operation::Action(Action::Undo)), &ctx)
+            .unwrap();
+        assert_eq!(e.document.edit.recipe().effects.film, before);
+        e.execute_command(Command::new(Operation::Action(Action::Redo)), &ctx)
+            .unwrap();
+        assert_eq!(e.document.edit.recipe().effects.film, off);
+        e.execute_command(Command::new(Operation::Action(Action::Undo)), &ctx)
+            .unwrap();
+    }
+}
+
+#[test]
+fn additional_film_commands_are_guarded_saved_and_undoable() {
+    let (mut e, ctx) = editor();
+    for (name, state) in [
+        ("film-grain:off", "film_grain_enabled"),
+        ("film-compression:on", "film_compression_enabled"),
+        ("film-grain:new-pattern", ""),
+    ] {
+        let before = e.document.edit.recipe().clone();
+        let revision = e.command_state().revision;
+        let action = Action::parse(name).unwrap();
+        let mut stale = Command::new(Operation::Action(action));
+        stale.target.revision = Some(revision.wrapping_add(1));
+        assert_eq!(
+            e.execute_command(stale, &ctx).unwrap_err().code,
+            "stale_target"
+        );
+        assert_eq!(*e.document.edit.recipe(), before);
+        e.execute_command(Command::new(Operation::Action(action)), &ctx)
+            .unwrap();
+        let changed = e.document.edit.recipe().clone();
+        assert_ne!(changed, before, "{name}");
+        assert!(e.document.edit.save_state().needs_save());
+        if !state.is_empty() {
+            assert_eq!(json(e.command_state())[state], !name.ends_with(":off"));
+        }
+        e.execute_command(Command::new(Operation::Action(Action::Undo)), &ctx)
+            .unwrap();
+        assert_eq!(*e.document.edit.recipe(), before);
+        e.execute_command(Command::new(Operation::Action(Action::Redo)), &ctx)
+            .unwrap();
+        assert_eq!(*e.document.edit.recipe(), changed);
+    }
+    let before = e.document.edit.recipe().clone();
+    let history = e.document.edit.history().id();
+    for (tab, name) in [(1, "grain"), (2, "compression"), (0, "light")] {
+        e.preview.film_view = crate::develop::film::View::Bloom;
+        e.execute_command(
+            Command::new(Operation::Action(Action::FilmPanel(tab))),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(json(e.command_state())["film_panel"], name);
+        assert_eq!(e.preview.film_view, crate::develop::film::View::Image);
+        assert_eq!(*e.document.edit.recipe(), before);
+        assert_eq!(e.document.edit.history().id(), history);
+    }
+    // The custom white point range is enforced at the external control boundary.
+    let set_white = |value| {
+        Command::new(Operation::Set(
+            Param::Setting(ParameterId::FilmCompressionWhitePoint),
+            value,
+        ))
+    };
+    e.execute_command(set_white(120.), &ctx).unwrap();
+    assert_eq!(
+        e.document
+            .edit
+            .recipe()
+            .effects
+            .film
+            .compression_white_point,
+        1.2
+    );
+    e.execute_command(set_white(121.), &ctx).unwrap();
+    assert_eq!(
+        e.document
+            .edit
+            .recipe()
+            .effects
+            .film
+            .compression_white_point,
+        1.2
+    );
+}

@@ -579,3 +579,11 @@ in a temporary directory that it removes. It reads the supplied RAW and
 installed profiles and writes no photographic files. Use the same RAW, profile,
 release build and machine conditions for comparisons. Keep private photos outside
 the repository.
+
+## Experimental film diffusion
+
+When Halation or Bloom is enabled, color development can still use compute, but
+spatial finishing uses the shared CPU diffusion operator. Effect-only diagnostics
+also use this path. Full-resolution regions include diffusion support before
+cropping. Fit retains the existing pyramid approximation. Performance depends on
+image size and diffusion settings. See [film effects](film-effects.md).

@@ -85,6 +85,7 @@ struct MagnifierJob {
     region: [u32; 4],
     monitor: Option<PathBuf>,
     clipping: ClipOverlay,
+    film_view: crate::develop::film::View,
 }
 impl PartialEq for MagnifierJob {
     fn eq(&self, other: &Self) -> bool {
@@ -93,6 +94,7 @@ impl PartialEq for MagnifierJob {
             && self.region == other.region
             && self.monitor == other.monitor
             && self.clipping == other.clipping
+            && self.film_view == other.film_view
     }
 }
 
@@ -449,6 +451,7 @@ impl Editor {
             region,
             monitor: self.view.display_profile(),
             clipping: self.view.clipping.overlay(),
+            film_view: self.overlay().film_view(),
         };
         if self.preview.magnifier.submitted.as_ref() == Some(&job) {
             return;
@@ -471,7 +474,11 @@ impl Editor {
             navigator: false,
             thumbnail: false,
             samples: false,
-            overlay: super::worker::Overlay::None,
+            overlay: if job.film_view == crate::develop::film::View::Image {
+                super::worker::Overlay::None
+            } else {
+                super::worker::Overlay::Film(job.film_view)
+            },
             drawn,
         });
     }

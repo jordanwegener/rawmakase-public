@@ -7,8 +7,8 @@ body:
         Please report one problem per issue and use a title that describes what fails.
 
         Before filling this in:
-        1. Search [existing issues](https://github.com/pch/rawmakase/issues?q=is%3Aissue) for the same problem.
-        2. Check the [latest release](https://github.com/pch/rawmakase/releases/latest). If practical, try it and say whether the problem still happens. You can still report a problem if you cannot update.
+        1. Search [existing issues](https://github.com/jordanwegener/rawmakase-public/issues?q=is%3Aissue) for the same problem.
+        2. Check the [latest release](https://github.com/jordanwegener/rawmakase-public/releases/latest). If practical, try it and say whether the problem still happens. You can still report a problem if you cannot update.
         3. Try to reproduce the problem with the fewest steps and files possible. For intermittent problems, describe the last occurrence.
         4. Include exact settings and error messages, plus screenshots or a sample when useful.
 

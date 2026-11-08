@@ -62,6 +62,8 @@ pub struct Effects {
     pub grain_size: f32,
     pub grain_roughness: f32,
     pub grain_seed: u32,
+    #[serde(skip_serializing_if = "crate::model::film::FilmEffects::is_default")]
+    pub film: crate::model::film::FilmEffects,
     pub vignette: f32,
     pub vignette_midpoint: f32,
     pub vignette_roundness: f32,
@@ -97,6 +99,7 @@ impl Default for Effects {
             grain_size: 0.25,
             grain_roughness: 0.5,
             grain_seed: 42,
+            film: Default::default(),
             vignette: 0.,
             vignette_midpoint: 0.5,
             vignette_roundness: 0.,
@@ -115,7 +118,7 @@ impl Default for Effects {
     }
 }
 impl Effects {
-    /// The Effects panel's reset: post-crop vignette and grain at their defaults. Other
+    /// The Effects panel's reset: vignette and grain at their defaults. Other
     /// panels' settings and the grain seed are kept.
     pub fn reset_post_crop(&mut self) {
         let d = Effects::default();
@@ -130,6 +133,7 @@ impl Effects {
         self.grain_roughness = d.grain_roughness;
     }
     pub fn validate(&self) -> Result<()> {
+        self.film.validate()?;
         for c in &self.channels {
             c.validate()?;
         }

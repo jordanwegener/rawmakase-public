@@ -63,7 +63,8 @@ pub(super) fn identity(
     demosaic: Demosaic,
 ) -> String {
     let mut h = DefaultHasher::new();
-    "preview-identity-1".hash(&mut h);
+    "preview-identity-2".hash(&mut h);
+    crate::develop::film::texture_fingerprint().hash(&mut h);
     record.recipe.hash(&mut h);
     record.local.hash(&mut h);
     record.lightroom().hash(&mut h);

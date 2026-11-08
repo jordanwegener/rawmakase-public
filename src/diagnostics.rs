@@ -15,7 +15,8 @@ use std::path::Path;
 use std::time::Duration;
 
 /// The repository's issues, searched before reporting.
-pub const SEARCH_ISSUES: &str = "https://github.com/pch/rawmakase/issues?q=is%3Aissue";
+pub const SEARCH_ISSUES: &str =
+    "https://github.com/jordanwegener/rawmakase-public/issues?q=is%3Aissue";
 
 /// How long finding the installation may take: it can run the package
 /// manager.
@@ -29,7 +30,7 @@ const UNTRUSTED_MAX: usize = 96;
 /// would be the only one to know.
 pub fn new_issue_url(version: &str) -> String {
     format!(
-        "https://github.com/pch/rawmakase/issues/new?template=bug_report.yml&version={}",
+        "https://github.com/jordanwegener/rawmakase-public/issues/new?template=bug_report.yml&version={}",
         percent_encode(version)
     )
 }
@@ -1027,11 +1028,11 @@ Background task: none
     fn the_issue_url_stays_short_and_encodes_the_version() {
         assert_eq!(
             new_issue_url("0.9.3"),
-            "https://github.com/pch/rawmakase/issues/new?template=bug_report.yml&version=0.9.3"
+            "https://github.com/jordanwegener/rawmakase-public/issues/new?template=bug_report.yml&version=0.9.3"
         );
         assert_eq!(
             new_issue_url("1.0.0-rc.1+g a&b=c"),
-            "https://github.com/pch/rawmakase/issues/new?template=bug_report.yml&version=1.0.0-rc.1%2Bg%20a%26b%3Dc"
+            "https://github.com/jordanwegener/rawmakase-public/issues/new?template=bug_report.yml&version=1.0.0-rc.1%2Bg%20a%26b%3Dc"
         );
         assert!(new_issue_url(env!("CARGO_PKG_VERSION")).len() < 200);
     }

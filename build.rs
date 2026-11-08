@@ -26,7 +26,7 @@ fn mcp_guide() {
         .filter(|s| s.len() == 40 && s.bytes().all(|b| b.is_ascii_hexdigit()))
         .unwrap_or_else(|| format!("v{}", std::env::var("CARGO_PKG_VERSION").unwrap()));
     println!(
-        "cargo:rustc-env=RAWMAKASE_MCP_GUIDE=https://github.com/pch/rawmakase/blob/{revision}/docs/mcp.md"
+        "cargo:rustc-env=RAWMAKASE_MCP_GUIDE=https://github.com/jordanwegener/rawmakase-public/blob/{revision}/docs/mcp.md"
     );
 }
 

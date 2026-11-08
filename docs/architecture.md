@@ -492,3 +492,15 @@ combined with the per-file white-balance presets the native adapter reads.
 Camera profiles apply them after signature matching. XMP carries Temperature
 and Tint; it does not implement calibration rules.
 See [camera parity](camera-parity.md) for the offline Adobe audit and references.
+
+## Native film effects
+
+The model owns four independent film effects, switches, ranges and original
+profile starting points. The engine's `develop::film` owns finite-support
+Halation/Bloom diffusion, analytic Compression and seeded procedural Grain.
+It contains no image-texture loader, asset embedding hook or external kernels.
+Both exports and previews call the same operators after detail processing, using
+whole-output dimensions and absolute coordinates. Broad margins are discarded
+before grain; cancelled work never replaces the captured input. Diagnostic
+`film::View` is temporary UI state, never stored in recipes or exports.
+See [film effects](film-effects.md) and [source provenance](provenance.md).

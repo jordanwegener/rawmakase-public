@@ -11,6 +11,11 @@ run="${3:-}"
 name=$(basename -- "$image")
 [[ "$name" =~ ^rawmakase-${version//./\\.}-(x86_64|aarch64)\.AppImage$ ]] || { echo "Unexpected AppImage name: $name" >&2; exit 1; }
 arch=${BASH_REMATCH[1]}
+# Rehearsals explicitly select their upstream fixture; releases use this fork.
+repository=${RAWMAKASE_APPIMAGE_REPOSITORY:-jordanwegener/rawmakase-public}
+[[ "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "Invalid expected repository" >&2; exit 1; }
+owner=${repository%/*}
+project=${repository#*/}
 chmod +x "$image"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -27,7 +32,7 @@ test "$(sha256sum < "$root/rawmakase.desktop")" = "$(sha256sum < "$root/usr/shar
 test -x "$root/usr/lib/rawmakase/rawmakase"
 # Where AppImageUpdate looks for the next release; native-packages has
 # already checked that the .zsync file describes this AppImage.
-test "$("$image" --appimage-updateinformation)" = "gh-releases-zsync|pch|rawmakase|latest|rawmakase-*-$arch.AppImage.zsync"
+test "$("$image" --appimage-updateinformation)" = "gh-releases-zsync|$owner|$project|latest|rawmakase-*-$arch.AppImage.zsync"
 test -s "$image.zsync" || { echo "Missing $name.zsync" >&2; exit 1; }
 if [[ "$run" = --run ]]; then
   expected="rawmakase $version"

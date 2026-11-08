@@ -96,6 +96,104 @@ pub use samples::*;
 pub(super) mod tests {
     use super::*;
     #[test]
+    fn fit_film_grain_tracks_reduced_export_strength_and_frequency() -> Result<()> {
+        fn stats(im: &Rendered) -> (f64, f64) {
+            let w = im.width as usize;
+            // The fixture is flat neutral RGB: measure luminance texture even
+            // when the chosen grain is monochrome, rather than cancelling it.
+            let channel: Vec<f64> = im.pixels.iter().map(|p| p[0] as f64).collect();
+            let mean = channel.iter().sum::<f64>() / channel.len() as f64;
+            let variance =
+                channel.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / channel.len() as f64;
+            let adjacent = channel
+                .chunks(w)
+                .flat_map(|row| row.windows(2))
+                .map(|p| (p[0] - mean) * (p[1] - mean))
+                .sum::<f64>()
+                / (im.height as usize * (w - 1)) as f64;
+            (variance.sqrt(), adjacent / variance)
+        }
+        for level in [0.05, 0.22, 0.6] {
+            for size in [1., 12., 18., 25., 48.] {
+                let mut im = fixture();
+                (im.width, im.height) = (1024, 768);
+                (im.metadata.width, im.metadata.height) = (im.width, im.height);
+                im.pixels = vec![[level; 3]; (im.width * im.height) as usize];
+                let mut r = Recipe {
+                    sharpening: 0.,
+                    ..Default::default()
+                };
+                r.effects.film.grain_amount = 0.35;
+                r.effects.film.grain_size = (size - 1.) / 47.;
+                let full = render(&im, &r.checked()?, 0, None)?;
+                for edge in [768, 512, 256, 128] {
+                    let reference = stats(&resize(full.clone(), edge));
+                    let fit = develop::PreviewRenderer::default().render(
+                        &im,
+                        &r,
+                        edge,
+                        None,
+                        &AtomicBool::new(false),
+                    )?;
+                    let actual = stats(&fit);
+                    eprintln!(
+                        "grain level={level} size={size} edge={edge}: reference={reference:?}, fit={actual:?}"
+                    );
+                    assert!(
+                        (actual.0 / reference.0 - 1.).abs() < 0.2,
+                        "Fit grain strength differs from reduced export: {actual:?} / {reference:?}"
+                    );
+                    assert!(
+                        (actual.1 - reference.1).abs() < 0.15,
+                        "Fit grain is too coarse: {actual:?} / {reference:?}"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+    #[test]
+    fn fit_grain_keeps_strength_when_the_short_axis_does_not_shrink() -> Result<()> {
+        fn rms(im: &Rendered) -> f64 {
+            let mean =
+                im.pixels.iter().map(|p| f64::from(p[0])).sum::<f64>() / im.pixels.len() as f64;
+            (im.pixels
+                .iter()
+                .map(|p| (f64::from(p[0]) - mean).powi(2))
+                .sum::<f64>()
+                / im.pixels.len() as f64)
+                .sqrt()
+        }
+        for (width, height) in [(1024, 1), (1, 1024), (1024, 3), (3, 1024)] {
+            let mut im = fixture();
+            (im.width, im.height) = (width, height);
+            (im.metadata.width, im.metadata.height) = (width, height);
+            im.pixels = vec![[0.22; 3]; (width * height) as usize];
+            let mut r = Recipe {
+                sharpening: 0.,
+                ..Default::default()
+            };
+            r.effects.film.grain_amount = 0.35;
+            r.effects.film.grain_size = 0.;
+            r.effects.film.grain_resolution = 1.;
+            let full = render(&im, &r.checked()?, 0, None)?;
+            let reference = rms(&resize(full, 128));
+            let fit = develop::PreviewRenderer::default().render(
+                &im,
+                &r,
+                128,
+                None,
+                &AtomicBool::new(false),
+            )?;
+            let actual = rms(&fit);
+            assert!(
+                (actual / reference - 1.).abs() < 0.2,
+                "{width}x{height}: Fit {actual} / reduced export {reference}"
+            );
+        }
+        Ok(())
+    }
+    #[test]
     fn cancelled_highlight_recovery_keeps_nothing() {
         let cancel = AtomicBool::new(true);
         let image = fixture();
@@ -154,6 +252,160 @@ pub(super) mod tests {
         assert_ne!(
             full.pixels,
             render(&im, &Recipe::default().checked()?, 0, None)?.pixels
+        );
+        Ok(())
+    }
+    #[test]
+    fn film_diffusion_survives_recipes_and_matches_rendered_regions() -> Result<()> {
+        let mut im = fixture();
+        for y in 20..45 {
+            for x in 35..55 {
+                im.pixels[y * 96 + x] = [1.; 3];
+            }
+        }
+        let mut r = Recipe::default();
+        r.effects.film =
+            crate::model::film::FilmEffects::preset(crate::model::film::FilmFormat::Strong35);
+        r.sharpening = 0.6;
+        r.sharpening_radius = 2.;
+        let restored: Recipe = serde_json::from_slice(&serde_json::to_vec(&r)?)?;
+        assert_eq!(restored.effects.film, r.effects.film);
+        let checked = r.checked()?;
+        let full = render(&im, &checked, 0, None)?;
+        for [x, y, w, h] in [[20, 15, 40, 35], [0, 0, 25, 25], [75, 60, 21, 20]] {
+            let tile = render(&im, &checked, 0, Some([x, y, w, h]))?;
+            for yy in 0..h {
+                for xx in 0..w {
+                    for c in 0..3 {
+                        assert!(
+                            (tile.pixels[(yy * w + xx) as usize][c]
+                                - full.pixels[((yy + y) * full.width + x + xx) as usize][c])
+                                .abs()
+                                < 3e-6
+                        );
+                    }
+                }
+            }
+        }
+        let fit = render(&im, &checked, 48, None)?;
+        assert_eq!(fit.pixels, resize(full, 48).pixels);
+        Ok(())
+    }
+    #[test]
+    fn complete_film_stack_repeats_and_matches_interior_and_border_regions() -> Result<()> {
+        use crate::model::film::{CompressionFormat, GrainFormat};
+        let mut im = fixture();
+        im.width = 320;
+        im.height = 240;
+        im.metadata.width = im.width;
+        im.metadata.height = im.height;
+        im.pixels = (0..im.width * im.height)
+            .map(|i| {
+                let v = ((i * 37) % 1009) as f32 / 1008.;
+                [v, v * 0.7, v * 0.4]
+            })
+            .collect();
+        let mut r = Recipe::default();
+        r.effects.film =
+            crate::model::film::FilmEffects::preset(crate::model::film::FilmFormat::Strong35);
+        r.effects
+            .film
+            .apply_grain_preset(GrainFormat::Standard35Iso250);
+        r.effects
+            .film
+            .apply_compression_preset(CompressionFormat::Dense);
+        r.effects.film.grain_seed = 901;
+        r.sharpening = 0.6;
+        r.sharpening_radius = 2.;
+        r.effects.grain = 0.3;
+        r.effects.vignette = -0.2;
+        let checked = r.checked()?;
+        let full = render(&im, &checked, 0, None)?;
+        assert_eq!(full.pixels, render(&im, &checked, 0, None)?.pixels);
+        for [x, y, w, h] in [[139, 108, 31, 27], [0, 0, 17, 21], [301, 218, 19, 22]] {
+            let tile = render(&im, &checked, 0, Some([x, y, w, h]))?;
+            let error = tile
+                .pixels
+                .iter()
+                .enumerate()
+                .flat_map(|(i, p)| {
+                    let q =
+                        full.pixels[((y + i as u32 / w) * im.width + x + i as u32 % w) as usize];
+                    (0..3).map(move |c| (p[c] - q[c]).abs())
+                })
+                .fold(0., f32::max);
+            assert!(error < 4e-6, "full film region drift at {x},{y}: {error}");
+        }
+        let mut off = r.clone();
+        off.effects.film.enabled = false;
+        let bypass = render(&im, &off.checked()?, 0, None)?;
+        off.effects.film = Default::default();
+        assert_eq!(bypass.pixels, render(&im, &off.checked()?, 0, None)?.pixels);
+        assert_ne!(full.pixels, bypass.pixels);
+        Ok(())
+    }
+    #[test]
+    fn film_region_includes_preceding_masked_noise_support() -> Result<()> {
+        use crate::model::{
+            film::FilmEffects,
+            masks::{LocalAdjust, MaskComponent, MaskGroup, MaskShape},
+        };
+        let mut im = fixture();
+        im.width = 100;
+        im.height = 1080;
+        im.metadata.width = im.width;
+        im.metadata.height = im.height;
+        im.pixels = (0..im.width * im.height)
+            .map(|i| {
+                [if matches!(i % 100, 41 | 42) {
+                    0.085
+                } else {
+                    0.08
+                }; 3]
+            })
+            .collect();
+        let mut r = Recipe {
+            sharpening: 0.,
+            ..Default::default()
+        };
+        r.masks.push(MaskGroup {
+            components: vec![MaskComponent::new(MaskShape::Linear {
+                from: [2., 0.],
+                to: [3., 0.],
+            })],
+            adjust: LocalAdjust {
+                noise: 1.,
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        r.effects.film = FilmEffects {
+            bloom_amount: 1.,
+            bloom_spread: 0.,
+            bloom_details: 0.6,
+            bloom_source_limiter: 0.,
+            bloom_amplify: 0.,
+            bloom_protection: 0.,
+            bloom_saturation: 1.,
+            ..Default::default()
+        };
+        let checked = r.checked()?;
+        let full = render(&im, &checked, 0, None)?;
+        let [x, y, w, h] = [50, 500, 10, 10];
+        let tile = render(&im, &checked, 0, Some([x, y, w, h]))?;
+        let max_error = tile
+            .pixels
+            .iter()
+            .enumerate()
+            .flat_map(|(i, p)| {
+                let full =
+                    &full.pixels[((y + i as u32 / w) * im.width + x + i as u32 % w) as usize];
+                (0..3).map(move |c| (p[c] - full[c]).abs())
+            })
+            .fold(0., f32::max);
+        assert!(
+            max_error < 2e-6,
+            "masked noise then film region drift: {max_error}"
         );
         Ok(())
     }

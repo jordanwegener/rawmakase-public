@@ -5,6 +5,7 @@ on:
     paths:
       - 'packaging/**'
       - 'native-packages.yaml'
+      - 'packaging-rehearsal.yaml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/packaging.yml'
       - '.github/workflows/release.yml'
@@ -14,6 +15,7 @@ on:
     paths:
       - 'packaging/**'
       - 'native-packages.yaml'
+      - 'packaging-rehearsal.yaml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/packaging.yml'
       - '.github/workflows/release.yml'
@@ -63,6 +65,7 @@ jobs:
           python3 -m unittest discover -s packaging -p 'test_*.py'
           gem install native-packages --version 0.10.0 --no-document
           native-packages validate
+          native-packages --config packaging-rehearsal.yaml validate
       - name: Parse the Windows packaging scripts
         shell: pwsh
         run: |
@@ -170,6 +173,7 @@ jobs:
       targets: ${{ inputs.version != '' && 'linux-amd64,linux-arm64' || 'linux-amd64' }}
       version: ${{ inputs.version || 'v0.1.8' }}
       source-artifact: ${{ inputs.source-artifact }}
+      config: ${{ inputs.version != '' && 'native-packages.yaml' || 'packaging-rehearsal.yaml' }}
       publish: false
 
   install:
@@ -233,4 +237,5 @@ jobs:
             sudo apt-get install -y zlib1g
             run=(--run)
           fi
+          if [[ -z "$RELEASE_VERSION" ]]; then export RAWMAKASE_APPIMAGE_REPOSITORY=pch/rawmakase; fi
           bash packaging/linux/verify-appimage.sh "native-packages/packages/$TARGET/appimage/rawmakase-$version-$ARCH.AppImage" "$version" "${run[@]}"

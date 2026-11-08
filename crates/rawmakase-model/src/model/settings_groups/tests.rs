@@ -132,6 +132,43 @@ fn everything_changed() -> Recipe {
     e.grain_size = 0.4;
     e.grain_roughness = 0.6;
     e.grain_seed = 7;
+    e.film = crate::model::film::FilmEffects {
+        enabled: false,
+        halation_enabled: false,
+        bloom_enabled: false,
+        halation_amount: 0.6,
+        halation_spread: 0.7,
+        halation_threshold: 0.8,
+        halation_hue: 0.9,
+        bloom_amount: 0.4,
+        bloom_spread: 0.5,
+        bloom_threshold: 0.6,
+        bloom_protection: 0.7,
+        bloom_saturation: 0.9,
+        halation_source_limiter: 0.91,
+        halation_background_gain: 0.91,
+        halation_smoothness: 0.91,
+        halation_global_diffusion: 0.91,
+        halation_amplify: 0.91,
+        halation_blue_compensation: 0.91,
+        bloom_source_limiter: 0.91,
+        bloom_details: 0.91,
+        bloom_amplify: 0.91,
+        grain_amount: 0.9,
+        grain_size: 0.9,
+        grain_shadows: 0.9,
+        grain_midtones: 0.9,
+        grain_highlights: 0.9,
+        grain_color: 0.9,
+        grain_resolution: 0.9,
+        compression_impact: 0.9,
+        compression_range: 0.9,
+        compression_white_point: 0.9,
+        compression_color_density: 0.9,
+        grain_enabled: false,
+        compression_enabled: true,
+        grain_seed: 17,
+    };
     e.vignette = -0.3;
     e.vignette_midpoint = 0.4;
     e.vignette_roundness = 0.2;
@@ -160,7 +197,9 @@ fn settings(r: &Recipe) -> BTreeMap<String, Value> {
         match (key.as_str(), value) {
             ("effects", Value::Object(effects)) => {
                 for (k, v) in effects {
-                    out.insert(format!("effects.{k}"), v);
+                    if k != "film" {
+                        out.insert(format!("effects.{k}"), v);
+                    }
                 }
             }
             ("from_a_newer_release", v) => {
@@ -170,6 +209,15 @@ fn settings(r: &Recipe) -> BTreeMap<String, Value> {
                 out.insert(key, v);
             }
         }
+    }
+    let Value::Object(mut film) = serde_json::to_value(r.effects.film).unwrap() else {
+        unreachable!()
+    };
+    for key in ["enabled", "halation_enabled", "bloom_enabled"] {
+        film.entry(key.to_string()).or_insert(Value::Bool(true));
+    }
+    for (key, value) in film {
+        out.insert(format!("effects.film.{key}"), value);
     }
     out
 }
@@ -217,6 +265,12 @@ fn each_group_transfers_exactly_its_settings() {
             .collect();
         // What is worked out for the target follows its group.
         match group {
+            SettingGroup::Halation
+            | SettingGroup::Bloom
+            | SettingGroup::FilmGrain
+            | SettingGroup::FilmCompression => {
+                expected.insert("effects.film.enabled".into());
+            }
             SettingGroup::WhiteBalance => {
                 expected.insert("wb".into());
             }
@@ -904,4 +958,21 @@ fn a_fitted_look_moves_as_the_sources_own() {
     );
     assert_eq!(out.recipe.profile, kept.profile);
     assert!(!out.notes.is_empty());
+}
+
+#[test]
+fn film_section_has_four_independent_copy_groups_and_migrates_the_old_selection() {
+    let section = SettingGroup::SECTIONS
+        .iter()
+        .find(|s| s.title == "Film Effects")
+        .unwrap();
+    assert_eq!(
+        section.groups.iter().map(|g| g.label()).collect::<Vec<_>>(),
+        ["Halation", "Bloom", "Film Grain", "Film Compression",]
+    );
+    let old: GroupSelection = serde_json::from_str(r#"["film_diffusion"]"#).unwrap();
+    assert_eq!(
+        old.groups().map(|g| g.label()).collect::<Vec<_>>(),
+        ["Halation", "Bloom"]
+    );
 }

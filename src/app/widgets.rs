@@ -429,6 +429,14 @@ fn section_header(
                 PanelState::Off => PanelState::On,
             };
         }
+        response.widget_info(|| {
+            egui::WidgetInfo::selected(
+                egui::WidgetType::Checkbox,
+                ui.is_enabled(),
+                *state == PanelState::On,
+                format!("{title} enabled"),
+            )
+        });
     }
     if let Some(group) = group {
         context_menu(&toggle, |ui| {

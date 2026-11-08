@@ -794,6 +794,38 @@ impl Preset {
         settings.assign("Clarity2012", &mut r.effects.clarity, 0.01, -1., 1.)?;
         settings.assign("Texture", &mut r.effects.texture, 0.01, -1., 1.)?;
         settings.assign("Dehaze", &mut r.effects.dehaze, 0.01, -1., 1.)?;
+        settings.seen.insert(super::FILM_DIFFUSION_KEY.into());
+        if let Some(value) = v.get(super::FILM_DIFFUSION_KEY) {
+            let film: crate::model::film::FilmEffects =
+                serde_json::from_str(value).context("Invalid film diffusion settings")?;
+            film.validate()?;
+            r.effects.film.copy_diffusion_from(film);
+        }
+        for (group, key, _) in super::FILM_CHILDREN {
+            settings.seen.insert(key.into());
+            if let Some(value) = v.get(key) {
+                let film: crate::model::film::FilmEffects = serde_json::from_str(value)
+                    .with_context(|| format!("Invalid {key} settings"))?;
+                film.validate()?;
+                use crate::model::settings_groups::SettingGroup::*;
+                match group {
+                    Halation => r.effects.film.copy_halation_from(film),
+                    Bloom => r.effects.film.copy_bloom_from(film),
+                    FilmGrain => r.effects.film.copy_grain_from(film),
+                    FilmCompression => r.effects.film.copy_compression_from(film),
+                    _ => unreachable!("native film child group"),
+                }
+            }
+        }
+        // A complete current sidecar takes precedence over legacy or partial
+        // packets, independent of XML attribute order.
+        settings.seen.insert(super::FILM_EFFECTS_KEY.into());
+        if let Some(value) = v.get(super::FILM_EFFECTS_KEY) {
+            let film: crate::model::film::FilmEffects =
+                serde_json::from_str(value).context("Invalid film effects settings")?;
+            film.validate()?;
+            r.effects.film = film;
+        }
         settings.assign("GrainAmount", &mut r.effects.grain, 0.01, 0., 1.)?;
         settings.assign("GrainSize", &mut r.effects.grain_size, 0.01, 0., 1.)?;
         settings.assign(

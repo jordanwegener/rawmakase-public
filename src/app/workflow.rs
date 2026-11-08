@@ -386,6 +386,9 @@ impl Editor {
                 },
                 _ => Overlay::None,
             },
+            Tool::None if self.preview.film_view != crate::develop::film::View::Image => {
+                Overlay::Film(self.preview.film_view)
+            }
             _ => Overlay::None,
         }
     }
@@ -425,7 +428,10 @@ impl Editor {
             let visualize = self
                 .visualized_swatch()
                 .and_then(|i| crate::model::point_color::visualize_range(&recipe.point_colors, i));
-            let thumbnail = region.is_none() && self.shows_library_edit() && visualize.is_none();
+            let thumbnail = region.is_none()
+                && self.shows_library_edit()
+                && visualize.is_none()
+                && self.preview.film_view == crate::develop::film::View::Image;
             if let Some(list) = visualize {
                 recipe.point_colors = list;
             }

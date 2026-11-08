@@ -1,6 +1,18 @@
 //! The render entry points: the resident GPU render, a level of the preview, and full-resolution output.
 use super::*;
 
+/// Sequential finishing stages need the sum of their source supports. Masked
+/// Noise reads a 5x5 neighborhood before film; masked Sharpness can run even
+/// when global sharpening is zero. Inspect the recipe before cropping weights.
+fn finish_halo(r: &Recipe, sigma: f32, full: [u32; 2]) -> u32 {
+    let active = || r.masks.iter().filter(|m| m.is_active());
+    let sharpen = r.sharpening > 0. || active().any(|m| m.adjust.sharpness != 0.);
+    let noise = active().any(|m| m.adjust.noise > 0.);
+    develop::film::halo(r.effects.film, full)
+        + if sharpen { gaussian(sigma).0 as u32 } else { 0 }
+        + if noise { 2 } else { 0 }
+}
+
 /// The GPU path for everything before the per-pixel stage, with the photo (or pyramid
 /// level) `source` kept on the device: the region's samples are made there, then
 /// developed and presented. `scale` is
@@ -19,6 +31,9 @@ fn render_resident(
     cancel: &AtomicBool,
     stages: &mut Stages,
 ) -> Result<Option<develop::gpu::Frame>> {
+    if r.effects.film.active() || stages.film_view != develop::film::View::Image {
+        return Ok(None);
+    }
     let Some(display) = stages.display else {
         return Ok(None);
     };
@@ -163,11 +178,7 @@ pub(crate) fn render_level(
             && y.checked_add(h).is_some_and(|v| v <= size.1),
         "Invalid viewport region"
     );
-    let halo = if r.sharpening > 0. {
-        gaussian(sigma).0 as u32
-    } else {
-        0
-    };
+    let halo = finish_halo(r, sigma, [size.0, size.1]);
     let (left, top) = (x.saturating_sub(halo), y.saturating_sub(halo));
     let right = (x + w + halo).min(size.0);
     let bottom = (y + h + halo).min(size.1);
@@ -223,31 +234,38 @@ pub(crate) fn render_level(
     )?;
     sharpen_with_radius(&mut out, r, sigma, weights.as_deref(), cancel)?;
     local_noise(&mut out, weights.as_deref());
-    crate::develop::effects::spatial_finish_scaled(
+    let grain_scale = if r.effects.film.grain_active() {
+        let native = Geometry::new(&full.image, r, 0);
+        [
+            size.0 as f32 / native.width as f32,
+            size.1 as f32 / native.height as f32,
+        ]
+    } else {
+        [scale; 2]
+    };
+    develop::film::apply_region(
         &mut out,
-        r,
-        [left, top],
-        [size.0, size.1],
-        scale,
-    );
+        r.effects.film,
+        develop::film::Region {
+            full: [size.0, size.1],
+            origin: [left, top],
+            output: region,
+            scale: grain_scale,
+        },
+        stages.film_view,
+        cancel,
+    )?;
+    if stages.film_view == develop::film::View::Image {
+        crate::develop::effects::spatial_finish_scaled(
+            &mut out,
+            r,
+            [x, y],
+            [size.0, size.1],
+            scale,
+        );
+    }
     check_cancel(cancel)?;
-    Ok(Output::Pixels(crop(out, [x - left, y - top, w, h])))
-}
-fn crop(im: Rendered, [x, y, w, h]: [u32; 4]) -> Rendered {
-    if (x, y, w, h) == (0, 0, im.width, im.height) {
-        return im;
-    }
-    let pixels = (0..h)
-        .flat_map(|row| {
-            let a = ((y + row) * im.width + x) as usize;
-            im.pixels[a..a + w as usize].iter().copied()
-        })
-        .collect();
-    Rendered {
-        width: w,
-        height: h,
-        pixels,
-    }
+    Ok(Output::Pixels(out))
 }
 pub fn render(
     im: &CameraImage,
@@ -302,11 +320,7 @@ pub(crate) fn render_preview(
             && y.checked_add(h).is_some_and(|v| v <= g.height),
         "Invalid viewport region"
     );
-    let halo = if r.sharpening > 0. {
-        (3. * Sharpener::new(r).sigma).ceil() as u32
-    } else {
-        0
-    };
+    let halo = finish_halo(r, Sharpener::new(r).sigma, [g.width, g.height]);
     let left = x.saturating_sub(halo);
     let top = y.saturating_sub(halo);
     let right = (x + w + halo).min(g.width);
@@ -388,7 +402,14 @@ pub(crate) fn render_preview(
     let local_finish = weights
         .as_ref()
         .is_some_and(|w| w.uses(&[slot::SHARPNESS, slot::NOISE]));
-    let spatial = r.effects.grain != 0. || r.effects.vignette != 0. || local_finish;
+    let film_view = stages
+        .as_ref()
+        .map_or(develop::film::View::Image, |s| s.film_view);
+    let spatial = r.effects.grain != 0.
+        || r.effects.vignette != 0.
+        || local_finish
+        || r.effects.film.active()
+        || film_view != develop::film::View::Image;
     let mut gpu_sharpened = false;
     let edge = if region.is_some() { 0 } else { max_edge };
     if !spatial
@@ -410,13 +431,27 @@ pub(crate) fn render_preview(
         sharpen_cancellable(&mut out, r, weights.as_deref(), cancel)?;
         local_noise(&mut out, weights.as_deref());
     }
-    crate::develop::effects::spatial_finish(&mut out, r, [left, top], [g.width, g.height]);
+    develop::film::apply_region(
+        &mut out,
+        r.effects.film,
+        develop::film::Region {
+            full: [g.width, g.height],
+            origin: [left, top],
+            output: [x, y, w, h],
+            scale: [1.; 2],
+        },
+        film_view,
+        cancel,
+    )?;
+    if film_view == develop::film::View::Image {
+        crate::develop::effects::spatial_finish(&mut out, r, [x, y], [g.width, g.height]);
+    }
     ensure!(
         !cancel.load(std::sync::atomic::Ordering::Relaxed),
         "Render superseded"
     );
     if region.is_some() {
-        Ok(Output::Pixels(crop(out, [x - left, y - top, w, h])))
+        Ok(Output::Pixels(out))
     } else {
         // Spatial effects retain their CPU reference implementation. Resize can
         // still use compute after those effects, without sharpening twice.

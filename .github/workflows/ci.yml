@@ -220,7 +220,7 @@ jobs:
           chown -R builder "$GITHUB_WORKSPACE" "$HOME/.cargo"
           chmod a+x "$HOME"
           # Build the -git recipe from this checkout rather than the published repository.
-          sed -i "s|git+https://github.com/pch/rawmakase.git|git+file://$GITHUB_WORKSPACE|" packaging/arch/rawmakase-git/PKGBUILD
+          sed -i "s|git+https://github.com/jordanwegener/rawmakase-public.git|git+file://$GITHUB_WORKSPACE|" packaging/arch/rawmakase-git/PKGBUILD
           sed -i "s|export CARGO_TARGET_DIR=target|export CARGO_TARGET_DIR=$GITHUB_WORKSPACE/target-arch|" packaging/arch/rawmakase-git/PKGBUILD
           sed -i "s|make install DESTDIR|make install BIN=$GITHUB_WORKSPACE/target-arch/release/rawmakase DESTDIR|" packaging/arch/rawmakase-git/PKGBUILD
           # The tests already run in the lint job; --nocheck skips a second full build.
@@ -248,6 +248,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.source-ref || github.sha }}
+      - run: python3 scripts/check-public-release.py
       - run: python3 scripts/deps.py check
       - name: Verify generated Shadows calibration
         run: python3 scripts/corpus/shadow-context.py --check

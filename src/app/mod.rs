@@ -620,9 +620,10 @@ pub fn run(path: Option<PathBuf>, launch: crate::updates::Launch) -> anyhow::Res
 
 fn run_window(path: Option<PathBuf>, launch: crate::updates::Launch) -> anyhow::Result<()> {
     let session = crate::app::session::load_session();
+    let app_title = option_env!("RAWMAKASE_BUILD_LABEL").unwrap_or("RAWmakase");
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_title("RAWmakase")
+            .with_title(app_title)
             // An empty icon keeps the macOS bundle's and Linux desktop entry's
             // icon; otherwise eframe replaces it with egui's logo while running.
             // On Windows that empty value leaves the title bar blank, so the
@@ -654,7 +655,7 @@ fn run_window(path: Option<PathBuf>, launch: crate::updates::Launch) -> anyhow::
     }
     let mut event_loop = winit::event_loop::EventLoop::with_user_event().build()?;
     let mut app = SurfaceGate(eframe::create_native(
-        "RAWmakase",
+        app_title,
         options,
         Box::new(move |cc| {
             // The event loop has built the app menu by now.

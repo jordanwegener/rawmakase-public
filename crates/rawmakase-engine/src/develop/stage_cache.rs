@@ -230,6 +230,7 @@ fn stage_recipes(r: &Recipe) -> StageRecipes {
         grain_size: _,
         grain_roughness: _,
         grain_seed: _,
+        film: _,
         vignette: _,
         vignette_midpoint: _,
         vignette_roundness: _,

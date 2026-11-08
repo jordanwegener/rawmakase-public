@@ -17,7 +17,7 @@ $arm64 = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq
 if (Test-Path $Output) { throw "$Output already exists" }
 New-Item -ItemType Directory $Output | Out-Null
 Copy-Item $Executable (Join-Path $Output 'rawmakase.exe')
-Copy-Item (Join-Path $root 'LICENSE'), (Join-Path $root 'README.md') $Output
+Copy-Item (Join-Path $root 'LICENSE'), (Join-Path $root 'README.md'), (Join-Path $root 'THIRD_PARTY_NOTICES.txt') $Output
 $licenses = New-Item -ItemType Directory (Join-Path $Output 'licenses')
 Copy-Item (Join-Path $root 'licenses\*') $licenses
 

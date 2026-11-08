@@ -26,19 +26,19 @@
   #define Architectures "x64compatible"
 #endif
 
-#define AppName "RAWmakase"
+#define AppName "RAWmakase Community"
 #define AppExeName "rawmakase.exe"
 
 [Setup]
 ; Never change: this is how Windows tells an update from a new program.
-AppId={{5A5F453A-1183-4E22-8B9C-B35362EB39FB}
+AppId={{B4A35001-BA38-4CBD-86FC-CA67AE906540}
 AppName={#AppName}
 AppVersion={#Version}
 AppVerName={#AppName} {#Version}
-AppPublisher=pch
-AppPublisherURL=https://github.com/pch/rawmakase
-AppSupportURL=https://github.com/pch/rawmakase/issues
-AppUpdatesURL=https://github.com/pch/rawmakase/releases
+AppPublisher=jordanwegener
+AppPublisherURL=https://github.com/jordanwegener/rawmakase-public
+AppSupportURL=https://github.com/jordanwegener/rawmakase-public/issues
+AppUpdatesURL=https://github.com/jordanwegener/rawmakase-public/releases
 DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
@@ -66,8 +66,8 @@ Source: "{#Payload}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs cr
 Source: "rawmakase-installer.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"; AppUserModelID: "io.github.pch.rawmakase"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon; AppUserModelID: "io.github.pch.rawmakase"
+Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"; AppUserModelID: "io.github.jordanwegener.rawmakase-public"
+Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon; AppUserModelID: "io.github.jordanwegener.rawmakase-public"
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent

@@ -1,0 +1,40 @@
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+    xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/"
+    xmlns:rawmakase="https://rawmakase.com/ns/xmp/1.0/"
+   crs:PresetType="Normal"
+   crs:Cluster=""
+   crs:UUID="EEE7F33FA71D5B0799C89DFBE66FDDE9"
+   crs:SupportsAmount="True"
+   crs:SupportsColor="True"
+   crs:SupportsMonochrome="True"
+   crs:SupportsHighDynamicRange="True"
+   crs:SupportsNormalDynamicRange="True"
+   crs:SupportsSceneReferred="True"
+   crs:SupportsOutputReferred="True"
+   crs:CameraModelRestriction=""
+   crs:Copyright="RAWmakase contributors, MIT licence"
+   crs:ContactInfo=""
+   crs:Version="15.4"
+   crs:RAWmakasePreset="2"
+   crs:HasSettings="True"
+   rawmakase:FilmBloom="{&quot;enabled&quot;:true,&quot;bloom_enabled&quot;:true,&quot;bloom_amount&quot;:0.25,&quot;bloom_spread&quot;:0.46,&quot;bloom_threshold&quot;:0.78,&quot;bloom_protection&quot;:0.72,&quot;bloom_saturation&quot;:0.86,&quot;bloom_source_limiter&quot;:0.48,&quot;bloom_details&quot;:0.64,&quot;bloom_amplify&quot;:0.23}">
+   <crs:Name>
+    <rdf:Alt>
+     <rdf:li xml:lang="x-default">Bloom - Color Glow</rdf:li>
+    </rdf:Alt>
+   </crs:Name>
+   <crs:Group>
+    <rdf:Alt>
+     <rdf:li xml:lang="x-default">Film Effects</rdf:li>
+    </rdf:Alt>
+   </crs:Group>
+   <crs:Description>
+    <rdf:Alt>
+     <rdf:li xml:lang="x-default">Apply after a color or film look. Changes only Bloom.</rdf:li>
+    </rdf:Alt>
+   </crs:Description>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
